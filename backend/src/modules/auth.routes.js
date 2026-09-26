@@ -1,7 +1,7 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import { audit, requireAuth, signAccessToken, signRefreshToken, verifyPassword } from "../core/auth.js";
+import { audit, hashPassword, requireAuth, signAccessToken, signRefreshToken, verifyPassword } from "../core/auth.js";
 import { HttpError } from "../core/http.js";
 import { User } from "../core/models.js";
 import { validate } from "../core/validate.js";
@@ -33,6 +33,42 @@ authRoutes.post("/refresh", async (req, res, next) => {
         const user = await User.findById(decoded.sub).orFail();
         const payload = { id: user.id, email: user.email, role: user.role, platformType: user.platformType ?? "SCRIPT_RECORDING", recordingMode: user.recordingMode ?? "SCRIPTED", vendorId: user.vendorId?.toString() };
         res.json({ accessToken: signAccessToken(payload), user: payload });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+const profileUpdateSchema = z.object({
+    body: z.object({
+        name: z.string().trim().min(1).max(120),
+        email: z.string().trim().email(),
+        currentPassword: z.string().optional(),
+        newPassword: z.string().min(8).max(128).optional()
+    }).refine((data) => Boolean(data.currentPassword) === Boolean(data.newPassword), {
+        message: "Enter both your current password and a new password to change it.",
+        path: ["newPassword"]
+    })
+});
+authRoutes.patch("/me", requireAuth, validate(profileUpdateSchema), async (req, res, next) => {
+    try {
+        const { name, email, currentPassword, newPassword } = req.body;
+        const normalizedEmail = email.toLowerCase();
+        const user = await User.findById(req.user.id).orFail();
+        if (normalizedEmail !== user.email) {
+            const emailInUse = await User.exists({ email: normalizedEmail, _id: { $ne: user.id } });
+            if (emailInUse)
+                throw new HttpError(409, "That email address is already in use.", "EMAIL_IN_USE");
+        }
+        if (newPassword) {
+            if (!(await verifyPassword(user.passwordHash, currentPassword)))
+                throw new HttpError(400, "Your current password is incorrect.", "INVALID_CURRENT_PASSWORD");
+            user.passwordHash = await hashPassword(newPassword);
+        }
+        user.name = name;
+        user.email = normalizedEmail;
+        await user.save();
+        await audit(user.id, "PROFILE_UPDATED", "User", user.id, { passwordChanged: Boolean(newPassword) });
+        res.json({ id: user.id, name: user.name, email: user.email, role: user.role, platformType: user.platformType ?? "SCRIPT_RECORDING", recordingMode: user.recordingMode ?? "SCRIPTED", vendorId: user.vendorId?.toString() });
     }
     catch (error) {
         next(error);

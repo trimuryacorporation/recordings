@@ -13,6 +13,7 @@ import {
   Settings,
   Shield,
   Users,
+  UserCircle,
   WalletCards,
   X
 } from "lucide-react";
@@ -172,7 +173,9 @@ export function AppLayout() {
             <Search className="h-4 w-4 shrink-0" />
             <span className="truncate">Global search</span>
           </div>
-          <div className="hidden min-w-0 text-right md:block"><p className="truncate text-sm font-semibold">{user?.name ?? user?.email}</p><p className="text-xs text-muted">{user?.role}</p></div>
+          <button type="button" className="hidden min-w-0 rounded-md px-3 py-2 text-right hover:bg-slate-100 md:block" onClick={() => navigate("/app/profile")} aria-label="Open my profile">
+            <span className="flex items-center justify-end gap-2"><UserCircle className="h-5 w-5 text-brand" /><span><span className="block truncate text-sm font-semibold">{user?.name ?? user?.email}</span><span className="block text-xs text-muted">{user?.role}</span></span></span>
+          </button>
           <button className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-slate-100" onClick={signOut}>
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Logout</span>

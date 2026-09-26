@@ -12,6 +12,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { LiveRecordingsPage } from "./pages/LiveRecordingsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { BillingPage, NotificationsPage, SettingsPage, VendorPaymentsPage } from "./pages/OperationsPages";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { QaPage } from "./pages/QaPage";
@@ -82,6 +83,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="audit-logs" element={<AuditLogsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="api-management" element={<ApiManagementPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="payments" element={<VendorPaymentsPage />} />

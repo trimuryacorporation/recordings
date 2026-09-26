@@ -1,4 +1,4 @@
-import "./core/env.js";
+﻿import "./core/env.js";
 import crypto from "node:crypto";
 import http from "node:http";
 import cookieParser from "cookie-parser";
@@ -20,7 +20,12 @@ const app = express();
 // Render provides its listening port through PORT. Keep BACKEND_PORT for local development.
 const port = Number(process.env.PORT ?? process.env.BACKEND_PORT ?? 4000);
 app.use(helmet());
-app.use(cors({ origin: process.env.APP_URL ?? "http://localhost:5173", credentials: true }));
+const allowedOrigins = [...new Set([
+    "http://localhost:5173",
+    "https://records.trimuryacorporation.in",
+    ...(process.env.APP_URL ?? "").split(",").map((origin) => origin.trim()).filter(Boolean)
+])];
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(rateLimit({ windowMs: 60_000, limit: 120 }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());

@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "";
+﻿const API_URL = import.meta.env.VITE_API_URL
+    ?? (import.meta.env.PROD ? "https://recordings-wz8u.onrender.com" : "");
 let accessToken = localStorage.getItem("trimurya.accessToken") ?? "";
 let refreshToken = localStorage.getItem("trimurya.refreshToken") ?? "";
 export function setAccessToken(token) {
@@ -72,6 +73,10 @@ export async function acceptGuestInvitation(token) {
 export function currentUser() {
     const raw = localStorage.getItem("trimurya.user");
     return raw ? JSON.parse(raw) : null;
+}
+export function updateCurrentUser(user) {
+    const existing = currentUser() ?? {};
+    localStorage.setItem("trimurya.user", JSON.stringify({ ...existing, ...user }));
 }
 export function platformHome(user = currentUser()) {
     if (user?.role === "GUEST" && user.sessionId) return `/dual-session/${user.sessionId}`;
