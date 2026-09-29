@@ -1375,7 +1375,7 @@ platformRoutes.patch("/settings", allowRoles("SUPER_ADMIN", "ADMIN"), async (req
     const { r2Endpoint, r2AccountId, r2AccessKey, r2SecretKey, smtpPassword, ...settingsInput } = input;
     const r2Values = { S3_ENDPOINT: r2Endpoint, R2_ACCOUNT_ID: r2AccountId, S3_ACCESS_KEY: r2AccessKey, S3_SECRET_KEY: r2SecretKey };
     if (Object.values(r2Values).some((value) => value !== undefined)) await saveR2Environment(r2Values);
-    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { ...settingsInput, ...(smtpPassword ? { smtpPassword } : {}), updatedById: toObjectId(req.user.id) }, { new: true, upsert: true, runValidators: true });
+    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { ...settingsInput, ...(input.smtpPort === 587 ? { smtpSecure: false } : {}), ...(smtpPassword ? { smtpPassword } : {}), updatedById: toObjectId(req.user.id) }, { new: true, upsert: true, runValidators: true });
     await audit(req.user.id, "SETTINGS_UPDATED", "AppSetting", settings.id, { r2CredentialsUpdated: Boolean(r2AccessKey || r2SecretKey), smtpPasswordUpdated: Boolean(smtpPassword) });
     res.json(settingsPayload(await AppSetting.findById(settings.id).select("+smtpPassword")));
 });

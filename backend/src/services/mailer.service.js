@@ -44,7 +44,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }) {
   const transport = nodemailer.createTransport({
     host: config.host,
     port: config.port,
-    secure: config.secure || config.port === 465,
+    secure: config.port === 465 || (config.secure && config.port !== 587),
     auth: { user: config.user, pass: config.password }
   });
   const safeName = escapeHtml(name || "there");
