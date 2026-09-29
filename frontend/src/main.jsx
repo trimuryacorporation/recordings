@@ -8,7 +8,6 @@ import { AuditLogsPage } from "./pages/AuditLogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DualSessionPage } from "./pages/DualSessionPage";
 import { DualRecordingsPage } from "./pages/DualRecordingsPage";
-import { LandingPage } from "./pages/LandingPage";
 import { LiveRecordingsPage } from "./pages/LiveRecordingsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
@@ -18,6 +17,7 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { QaPage } from "./pages/QaPage";
 import { RecorderPage } from "./pages/RecorderPage";
 import { RecordingDashboardPage } from "./pages/RecordingDashboardPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { ScriptsPage } from "./pages/ScriptsPage";
 import { ScriptRecordingPage } from "./pages/ScriptRecordingPage";
@@ -43,8 +43,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/login/single" element={<Navigate to="/login" replace />} />
         <Route path="/login/dual" element={<Navigate to="/login" replace />} />
         <Route path="/login/script" element={<Navigate to="/login" replace />} />

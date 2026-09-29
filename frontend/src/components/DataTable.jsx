@@ -2,7 +2,7 @@ import { ArrowUpDown } from "lucide-react";
 import { clsx } from "clsx";
 import { EmptyState, Skeleton } from "./ui/primitives";
 
-export function DataTable({ rows = [], columns = [], empty = "No records found", loading = false, tableClassName }) {
+export function DataTable({ rows = [], columns = [], empty = "No records found", loading = false, tableClassName, onRowClick, rowActionLabel = "Open record" }) {
   if (loading) {
     return (
       <div className="space-y-2">
@@ -33,7 +33,7 @@ export function DataTable({ rows = [], columns = [], empty = "No records found",
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={row.id ?? row._id ?? index} className="border-b border-slate-100 hover:bg-slate-50">
+            <tr key={row.id ?? row._id ?? index} className={clsx("border-b border-slate-100 hover:bg-slate-50", onRowClick && "cursor-pointer focus:bg-teal-50 focus:outline-none")} onClick={() => onRowClick?.(row)} onKeyDown={(event) => { if (onRowClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onRowClick(row); } }} tabIndex={onRowClick ? 0 : undefined} role={onRowClick ? "button" : undefined} aria-label={onRowClick ? rowActionLabel : undefined}>
               {columns.map((column) => (
                 <td key={column.id ?? column.header} className={clsx("px-4 py-3 align-top", column.cellClassName)}>
                   {column.cell(row)}

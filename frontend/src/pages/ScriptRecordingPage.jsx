@@ -168,7 +168,7 @@ export function ScriptRecordingPage() {
       const checksum = btoa(String.fromCharCode(...new Uint8Array(hash)));
       const upload = await api("/api/uploads/initiate", {
         method: "POST",
-        body: JSON.stringify({ fileName: `${scripted ? task.id : `manual-${Date.now()}`}.webm`, mimeType: blob.type, size: blob.size, checksum })
+        body: JSON.stringify({ fileName: `${scripted ? task.id : `manual-${Date.now()}`}.webm`, mimeType: blob.type, size: blob.size, checksum, recordingType: "SINGLE" })
       });
       if (scripted) {
         let sessionId = activeSessionId.current;

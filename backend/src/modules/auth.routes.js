@@ -1,9 +1,11 @@
+import { createHash, randomBytes } from "node:crypto";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { audit, hashPassword, requireAuth, signAccessToken, signRefreshToken, verifyPassword } from "../core/auth.js";
 import { HttpError } from "../core/http.js";
 import { User } from "../core/models.js";
+import { isEmailConfigured, sendPasswordResetEmail } from "../services/mailer.service.js";
 import { validate } from "../core/validate.js";
 export const authRoutes = Router();
 authRoutes.post("/login", validate(z.object({ body: z.object({ email: z.string().email(), password: z.string().min(8) }) })), async (req, res, next) => {
@@ -24,7 +26,52 @@ authRoutes.post("/login", validate(z.object({ body: z.object({ email: z.string()
         next(error);
     }
 });
-authRoutes.post("/refresh", async (req, res, next) => {
+authRoutes.post("/forgot-password", validate(z.object({ body: z.object({ email: z.string().trim().email() }) })), async (req, res, next) => {
+    try {
+        if (!isEmailConfigured())
+            throw new HttpError(503, "Password reset email service is not configured. Please contact support.", "EMAIL_NOT_CONFIGURED");
+        const user = await User.findOne({ email: req.body.email.toLowerCase(), status: "ACTIVE" });
+        if (!user) {
+            return res.json({ message: "Password reset link has been sent to your email." });
+        }
+        const token = randomBytes(32).toString("hex");
+        user.passwordResetTokenHash = createHash("sha256").update(token).digest("hex");
+        user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+        await user.save();
+        const appUrl = (process.env.APP_URL ?? "http://localhost:5173").replace(/\/$/, "");
+        try {
+            await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl: `${appUrl}/reset-password?token=${token}` });
+        }
+        catch (error) {
+            user.passwordResetTokenHash = undefined;
+            user.passwordResetExpiresAt = undefined;
+            await user.save();
+            throw error;
+        }
+        await audit(user.id, "PASSWORD_RESET_REQUESTED", "User", user.id);
+        res.json({ message: "Password reset link has been sent to your email." });
+    }
+    catch (error) {
+        next(error);
+    }
+});
+authRoutes.post("/reset-password", validate(z.object({ body: z.object({ token: z.string().length(64), password: z.string().min(8).max(128) }) })), async (req, res, next) => {
+    try {
+        const tokenHash = createHash("sha256").update(req.body.token).digest("hex");
+        const user = await User.findOne({ passwordResetTokenHash: tokenHash, passwordResetExpiresAt: { $gt: new Date() } });
+        if (!user)
+            throw new HttpError(400, "This password-reset link is invalid or has expired.", "INVALID_RESET_TOKEN");
+        user.passwordHash = await hashPassword(req.body.password);
+        user.passwordResetTokenHash = undefined;
+        user.passwordResetExpiresAt = undefined;
+        await user.save();
+        await audit(user.id, "PASSWORD_RESET_COMPLETED", "User", user.id);
+        res.json({ message: "Your password has been reset. Please sign in." });
+    }
+    catch (error) {
+        next(error);
+    }
+});authRoutes.post("/refresh", async (req, res, next) => {
     try {
         const token = req.body.refreshToken ?? req.cookies?.refreshToken;
         if (!token)

@@ -12,6 +12,30 @@ import { toObjectId } from "../core/mongo.js";
 import { assertSessionTransition, assertTaskTransition } from "../core/state-machines.js";
 import { validate } from "../core/validate.js";
 import { storageProvider } from "../storage/storage.service.js";
+function maskConfiguredValue(value) {
+    return value ? `${"•".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}` : "";
+}
+function settingsPayload(settings) {
+    return {
+        ...json(settings),
+        r2Endpoint: process.env.S3_ENDPOINT ?? "",
+        r2AccountId: process.env.R2_ACCOUNT_ID ?? "",
+        r2AccessKeyConfigured: Boolean(process.env.S3_ACCESS_KEY),
+        r2SecretKeyConfigured: Boolean(process.env.S3_SECRET_KEY)
+    };
+}
+async function saveR2Environment(values) {
+    const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.env");
+    let content = await fs.readFile(envPath, "utf8");
+    for (const [key, value] of Object.entries(values)) {
+        if (value === undefined || value === "") continue;
+        const line = `${key}=${JSON.stringify(value)}`;
+        const expression = new RegExp(`^${key}=.*$`, "m");
+        content = expression.test(content) ? content.replace(expression, line) : `${content.trimEnd()}\n${line}\n`;
+        process.env[key] = value;
+    }
+    await fs.writeFile(envPath, content, "utf8");
+}
 export const platformRoutes = Router();
 platformRoutes.post("/invitations/:token/guest-accept", async (req, res) => {
     const tokenHash = crypto.createHash("sha256").update(req.params.token).digest("hex");
@@ -461,11 +485,20 @@ platformRoutes.patch("/scripts/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async (
     res.json(script);
 });
 platformRoutes.delete("/scripts/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
-    const deletedAt = new Date();
-    const script = await Script.findOneAndUpdate({ _id: req.params.id, deletedAt: { $exists: false } }, { deletedAt, status: "ARCHIVED" }, { new: true }).orFail();
-    const tasks = await RecordingTask.updateMany({ scriptId: script.id, status: { $in: ["UNASSIGNED", "ASSIGNED"] }, deletedAt: { $exists: false } }, { deletedAt, status: "DELETED" });
-    await audit(req.user?.id, "SCRIPT_DELETED", "Script", script.id, { hiddenTasks: tasks.modifiedCount });
-    res.json({ ok: true, id: script.id, hiddenTasks: tasks.modifiedCount });
+    const script = await Script.findById(req.params.id).orFail();
+    const taskIds = (await RecordingTask.find({ scriptId: script.id }).select("_id")).map((task) => task._id);
+    const linkedRecordings = taskIds.length ? await Recording.find({ taskId: { $in: taskIds } }).select("_id sessionId") : [];
+    const recordingIds = linkedRecordings.map((recording) => recording._id);
+    const sessionIds = linkedRecordings.map((recording) => recording.sessionId).filter(Boolean);
+    const deletedAudio = recordingIds.length ? await deleteRecordingMedia(recordingIds) : 0;
+    if (sessionIds.length) await RecordingSession.updateMany({ _id: { $in: sessionIds } }, { $unset: { "syncMetadata.recordingId": 1 } });
+    const [versions, tasks] = await Promise.all([
+        ScriptVersion.deleteMany({ scriptId: script.id }),
+        RecordingTask.deleteMany({ scriptId: script.id })
+    ]);
+    await Script.findByIdAndDelete(script.id);
+    await audit(req.user?.id, "SCRIPT_DELETED", "Script", script.id, { permanent: true, deletedVersions: versions.deletedCount, deletedTasks: tasks.deletedCount, deletedAudio });
+    res.json({ deleted: true, id: script.id, deletedVersions: versions.deletedCount, deletedTasks: tasks.deletedCount, deletedAudio });
 });
 platformRoutes.get("/tasks", async (req, res) => {
     const { skip, limit } = pageArgs(req.query);
@@ -682,9 +715,9 @@ platformRoutes.delete("/tasks/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async (r
     const current = await RecordingTask.findOne({ _id: req.params.id, deletedAt: { $exists: false } }).orFail();
     if (!["UNASSIGNED", "ASSIGNED"].includes(current.status))
         throw new HttpError(422, "Only unassigned or assigned tasks can be deleted.", "TASK_NOT_DELETABLE");
-    const task = await RecordingTask.findByIdAndUpdate(current.id, { deletedAt: new Date(), status: "DELETED" }, { new: true }).orFail();
-    await audit(req.user?.id, "TASK_DELETED", "RecordingTask", task.id);
-    res.json({ ok: true, id: task.id });
+    const task = await RecordingTask.findByIdAndDelete(current.id).orFail();
+    await audit(req.user?.id, "TASK_DELETED", "RecordingTask", task.id, { permanent: true });
+    res.json({ deleted: true, id: task.id });
 });
 platformRoutes.post("/tasks/:id/assign", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"), async (req, res) => {
     const current = await RecordingTask.findOne({ _id: req.params.id, deletedAt: { $exists: false } }).orFail();
@@ -1021,7 +1054,8 @@ platformRoutes.post("/recording-sessions/:id/next", async (req, res) => {
     res.json({ sessionId: nextSession.id, taskId: nextTask.id });
 });
 platformRoutes.post("/uploads/initiate", async (req, res) => {
-    const initiated = await storageProvider().initiateUpload(req.body);
+    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global" } }, { new: true, upsert: true });
+    const initiated = await storageProvider({ enabled: settings.r2Enabled, bucket: settings.r2Bucket, singlePrefix: settings.r2SinglePrefix, dualPrefix: settings.r2DualPrefix }).initiateUpload(req.body);
     const media = await MediaFile.create({ fileKey: initiated.fileKey, bucket: initiated.bucket, mimeType: req.body.mimeType, size: req.body.size, checksum: req.body.checksum, storageProvider: initiated.provider, uploadStatus: "INITIATED" });
     res.status(201).json({ uploadId: media.id, ...initiated });
 });
@@ -1139,7 +1173,7 @@ platformRoutes.get("/recordings-dual", allowRoles("SUPER_ADMIN", "ADMIN"), async
                     return null;
                 }
             }
-            return { ...json(track), playbackUrl: await storageProvider().getSignedPlaybackUrl(track.mediaFileId.fileKey) };
+            return { ...json(track), playbackUrl: await storageProvider().getSignedPlaybackUrl(track.mediaFileId.fileKey, track.mediaFileId.bucket) };
         }));
         row.tracks = availableTracks.filter(Boolean);
         return row;
@@ -1163,6 +1197,25 @@ platformRoutes.get("/recordings-dual", allowRoles("SUPER_ADMIN", "ADMIN"), async
     const items = groupedRows.slice((safePage - 1) * pageSize, safePage * pageSize);
     res.json({ items, total, page: safePage, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
 });
+async function deleteRecordingMedia(recordingIds) {
+    const tracks = await RecordingTrack.find({ recordingId: { $in: recordingIds } }).populate("mediaFileId");
+    const mediaFiles = [...new Map(tracks.filter((track) => track.mediaFileId).map((track) => [track.mediaFileId.id, track.mediaFileId])).values()];
+    const provider = storageProvider({ enabled: true });
+    await Promise.all(mediaFiles.map(async (media) => {
+        const isLocal = media.storageProvider === "local" || media.fileKey.startsWith("local/");
+        if (isLocal) {
+            try { await fs.unlink(path.join(localUploads, path.basename(media.fileKey))); }
+            catch (error) { if (error?.code !== "ENOENT") throw error; }
+            return;
+        }
+        if (typeof provider.deleteObject !== "function") throw new HttpError(501, "Cloud storage deletion is not configured.", "STORAGE_DELETE_UNAVAILABLE");
+        await provider.deleteObject(media.fileKey, media.bucket || undefined);
+    }));
+    await RecordingTrack.deleteMany({ recordingId: { $in: recordingIds } });
+    await MediaFile.deleteMany({ _id: { $in: mediaFiles.map((media) => media._id) } });
+    await Recording.deleteMany({ _id: { $in: recordingIds } });
+    return mediaFiles.length;
+}
 async function deleteDualRecordingGroups(ids) {
     const selected = await Recording.find({ _id: { $in: ids }, recordingType: "DUAL" }).select("_id sessionId");
     if (!selected.length) throw new HttpError(404, "Recording not found.", "RECORDING_NOT_FOUND");
@@ -1172,26 +1225,8 @@ async function deleteDualRecordingGroups(ids) {
         $or: [{ _id: { $in: ids } }, ...(sessionIds.length ? [{ sessionId: { $in: sessionIds } }] : [])]
     }).select("_id sessionId");
     const recordingIds = recordings.map((recording) => recording._id);
-    const tracks = await RecordingTrack.find({ recordingId: { $in: recordingIds } }).populate("mediaFileId");
-    const mediaFiles = [...new Map(tracks.filter((track) => track.mediaFileId).map((track) => [track.mediaFileId.id, track.mediaFileId])).values()];
-    const provider = storageProvider();
+    await deleteRecordingMedia(recordingIds);
 
-    await Promise.all(mediaFiles.map(async (media) => {
-        const isLocal = media.storageProvider === "local" || media.fileKey.startsWith("local/");
-        if (isLocal) {
-            try {
-                await fs.unlink(path.join(localUploads, path.basename(media.fileKey)));
-            } catch (error) {
-                if (error?.code !== "ENOENT") throw error;
-            }
-            return;
-        }
-        if (typeof provider.deleteObject !== "function") throw new HttpError(501, "Cloud storage deletion is not configured.", "STORAGE_DELETE_UNAVAILABLE");
-        await provider.deleteObject(media.fileKey, media.bucket || undefined);
-    }));
-    await RecordingTrack.deleteMany({ recordingId: { $in: recordingIds } });
-    await MediaFile.deleteMany({ _id: { $in: mediaFiles.map((media) => media._id) } });
-    await Recording.deleteMany({ _id: { $in: recordingIds } });
     if (sessionIds.length) {
         await RecordingSession.updateMany({ _id: { $in: sessionIds } }, { $unset: { "syncMetadata.recordingId": 1 } });
     }
@@ -1302,13 +1337,15 @@ platformRoutes.delete("/notifications/:id", async (req, res) => {
     res.json({ deleted: true });
 });
 platformRoutes.get("/settings", allowRoles("SUPER_ADMIN", "ADMIN"), async (_req, res) => {
-    res.json(await AppSetting.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global" } }, { new: true, upsert: true }));
+    res.json(settingsPayload(await AppSetting.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global" } }, { new: true, upsert: true })));
 });
 platformRoutes.patch("/settings", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
-    const input = z.object({ organizationName: z.string().trim().min(2).max(150), supportEmail: z.union([z.literal(""), z.string().email()]), defaultCurrency: z.string().trim().min(3).max(3), recordingCountdown: z.coerce.number().int().min(0).max(30), defaultPageSize: z.coerce.number().int().min(10).max(200), requireQaReview: z.boolean(), emailNotifications: z.boolean() }).parse(req.body);
-    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { ...input, updatedById: toObjectId(req.user.id) }, { new: true, upsert: true, runValidators: true });
-    await audit(req.user.id, "SETTINGS_UPDATED", "AppSetting", settings.id);
-    res.json(settings);
+    const input = z.object({ organizationName: z.string().trim().min(2).max(150), supportEmail: z.union([z.literal(""), z.string().email()]), defaultCurrency: z.string().trim().min(3).max(3), recordingCountdown: z.coerce.number().int().min(0).max(30), defaultPageSize: z.coerce.number().int().min(10).max(200), requireQaReview: z.boolean(), emailNotifications: z.boolean(), r2Enabled: z.boolean(), r2Bucket: z.string().trim().min(3).max(120), r2SinglePrefix: z.string().trim().min(1).max(120), r2DualPrefix: z.string().trim().min(1).max(120), r2Endpoint: z.string().trim().url(), r2AccountId: z.string().trim().min(8).max(128), r2AccessKey: z.string().trim().max(256).optional(), r2SecretKey: z.string().trim().max(256).optional() }).parse(req.body);
+    const { r2Endpoint, r2AccountId, r2AccessKey, r2SecretKey, ...settingsInput } = input;
+    await saveR2Environment({ S3_ENDPOINT: r2Endpoint, R2_ACCOUNT_ID: r2AccountId, S3_ACCESS_KEY: r2AccessKey, S3_SECRET_KEY: r2SecretKey });
+    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { ...settingsInput, updatedById: toObjectId(req.user.id) }, { new: true, upsert: true, runValidators: true });
+    await audit(req.user.id, "SETTINGS_UPDATED", "AppSetting", settings.id, { r2CredentialsUpdated: Boolean(r2AccessKey || r2SecretKey) });
+    res.json(settingsPayload(settings));
 });
 platformRoutes.get("/audit-logs", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     const { skip, limit } = pageArgs(req.query);

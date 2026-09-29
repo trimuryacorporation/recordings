@@ -1,4 +1,4 @@
-﻿const API_URL = import.meta.env.VITE_API_URL
+const API_URL = import.meta.env.VITE_API_URL
     ?? (import.meta.env.PROD ? "https://recordings-wz8u.onrender.com" : "");
 let accessToken = localStorage.getItem("trimurya.accessToken") ?? "";
 let refreshToken = localStorage.getItem("trimurya.refreshToken") ?? "";
@@ -62,7 +62,12 @@ export async function login(email, password) {
     localStorage.setItem("trimurya.user", JSON.stringify({ ...result.user, name: result.name }));
     return result;
 }
-export async function acceptGuestInvitation(token) {
+export async function requestPasswordReset(email) {
+    return api("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+}
+export async function resetPassword(token, password) {
+    return api("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
+}export async function acceptGuestInvitation(token) {
     const result = await api(`/api/invitations/${token}/guest-accept`, { method: "POST", body: "{}" });
     setAccessToken(result.accessToken);
     refreshToken = "";

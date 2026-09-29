@@ -18,6 +18,8 @@ export const User = mongoose.model("User", new Schema({
     phone: String,
     mobile: String,
     passwordHash: { type: String, required: true },
+    passwordResetTokenHash: String,
+    passwordResetExpiresAt: Date,
     role: { type: String, required: true, enum: ["SUPER_ADMIN", "ADMIN", "QA", "VENDOR", "RECORDER"] },
     platformType: { type: String, enum: ["SINGLE_RECORDING", "DUAL_RECORDING", "SCRIPT_RECORDING"], default: "SCRIPT_RECORDING" },
     recordingMode: { type: String, enum: ["SCRIPTED", "NON_SCRIPTED"], default: "SCRIPTED" },
@@ -203,6 +205,10 @@ export const AppSetting = mongoose.model("AppSetting", new Schema({
     defaultPageSize: { type: Number, default: 100, min: 10, max: 200 },
     requireQaReview: { type: Boolean, default: true },
     emailNotifications: { type: Boolean, default: true },
+    r2Enabled: { type: Boolean, default: true },
+    r2Bucket: { type: String, default: "audiorecordingtools" },
+    r2SinglePrefix: { type: String, default: "single" },
+    r2DualPrefix: { type: String, default: "dual" },
     updatedById: { type: objectId, ref: "User" }
 }, schemaOptions));
 export const AuditLog = mongoose.model("AuditLog", new Schema({ actorId: { type: objectId, ref: "User" }, action: String, entity: String, entityId: String, ip: String, metadata: { type: Schema.Types.Mixed, default: {} } }, schemaOptions));

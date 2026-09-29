@@ -92,7 +92,7 @@ function Sidebar({ user, onNavigate }) {
         <p className="text-sm font-bold text-brand">Trimurya Corporation Pvt. Ltd.</p>
         <p className="mt-1 text-xs text-muted">Script Recording Platform</p>
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav className="app-scrollbar flex-1 overflow-y-auto px-3 py-4">
         {visibleSections.map((section) => (
           <div key={section.title} className="mb-5">
             <p className="px-3 pb-2 text-[11px] font-bold uppercase text-muted">{section.title}</p>

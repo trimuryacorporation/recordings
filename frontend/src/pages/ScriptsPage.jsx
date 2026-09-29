@@ -145,7 +145,7 @@ export function ScriptsPage() {
   }
 
   async function deleteScript(row) {
-    if (!window.confirm(`Delete script "${row.title}"? Assigned tasks that have not started will also be hidden.`)) return;
+    if (!window.confirm(`Permanently delete script "${row.title}"? Its task records and version history will also be removed from MongoDB. This cannot be undone.`)) return;
     setError("");
     setCreateResult("");
     try {

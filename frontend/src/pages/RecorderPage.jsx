@@ -66,7 +66,7 @@ export function RecorderPage({ mode }) {
       const checksum = btoa(String.fromCharCode(...new Uint8Array(hash)));
       const upload = await api("/api/uploads/initiate", {
         method: "POST",
-        body: JSON.stringify({ fileName: `${taskId}.webm`, mimeType: blob.type, size: blob.size, checksum })
+        body: JSON.stringify({ fileName: `${taskId}.webm`, mimeType: blob.type, size: blob.size, checksum, recordingType: "SINGLE" })
       });
       await api(`/api/uploads/${upload.uploadId}/complete`, {
         method: "POST",

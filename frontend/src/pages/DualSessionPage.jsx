@@ -81,7 +81,7 @@ export function DualSessionPage() {
         try {
           const hash = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
           const checksum = btoa(String.fromCharCode(...new Uint8Array(hash)));
-          const upload = await api("/api/uploads/initiate", { method: "POST", body: JSON.stringify({ fileName: `${sessionId}-${role}.webm`, mimeType: blob.type, size: blob.size, checksum }) });
+          const upload = await api("/api/uploads/initiate", { method: "POST", body: JSON.stringify({ fileName: `${sessionId}-${role}.webm`, mimeType: blob.type, size: blob.size, checksum, recordingType: "DUAL" }) });
           await uploadBinary(upload.uploadUrl, blob);
           await api(`/api/uploads/${upload.uploadId}/complete`, { method: "POST", body: JSON.stringify({ taskId: task?.id, sessionId, participantLabel: role, durationSeconds: secondsRef.current, kind: "audio", timestamps: { localStopEpochMs: Date.now() } }) });
           setUploadedParticipants((labels) => labels.includes(role) ? labels : [...labels, role]);
