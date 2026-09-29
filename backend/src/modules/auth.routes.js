@@ -3,10 +3,16 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { audit, hashPassword, requireAuth, signAccessToken, signRefreshToken, verifyPassword } from "../core/auth.js";
+import { corsOrigins } from "../core/cors.js";
 import { HttpError } from "../core/http.js";
 import { User } from "../core/models.js";
 import { isEmailConfigured, sendPasswordResetEmail } from "../services/mailer.service.js";
 import { validate } from "../core/validate.js";
+function passwordResetAppUrl(req) {
+    const origin = req.get("origin")?.replace(/\/$/, "");
+    if (origin && corsOrigins.includes(origin)) return origin;
+    return (process.env.APP_URL ?? "https://trt.trimuryacorporation.in").replace(/\/$/, "");
+}
 export const authRoutes = Router();
 authRoutes.post("/login", validate(z.object({ body: z.object({ email: z.string().email(), password: z.string().min(8) }) })), async (req, res, next) => {
     try {
@@ -38,7 +44,7 @@ authRoutes.post("/forgot-password", validate(z.object({ body: z.object({ email: 
         user.passwordResetTokenHash = createHash("sha256").update(token).digest("hex");
         user.passwordResetExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
         await user.save();
-        const appUrl = (process.env.APP_URL ?? "http://localhost:5173").replace(/\/$/, "");
+        const appUrl = passwordResetAppUrl(req);
         try {
             await sendPasswordResetEmail({ to: user.email, name: user.name, resetUrl: `${appUrl}/reset-password?token=${token}` });
         }
