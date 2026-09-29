@@ -1342,7 +1342,7 @@ platformRoutes.delete("/vendor-payments/:id", allowRoles("SUPER_ADMIN", "ADMIN")
     res.json({ deleted: true });
 });
 platformRoutes.get("/notifications", async (req, res) => {
-    const where = ["SUPER_ADMIN", "ADMIN"].includes(req.user.role) ? {} : { userId: toObjectId(req.user.id) };
+    const where = ["SUPER_ADMIN", "ADMIN"].includes(req.user.role) ? {} : { $or: [{ userId: toObjectId(req.user.id) }, { userId: null }] };
     res.json(await Notification.find(where).populate("userId", "name email role").sort({ createdAt: -1 }).limit(200));
 });
 platformRoutes.post("/notifications", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
