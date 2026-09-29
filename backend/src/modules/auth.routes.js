@@ -28,7 +28,7 @@ authRoutes.post("/login", validate(z.object({ body: z.object({ email: z.string()
 });
 authRoutes.post("/forgot-password", validate(z.object({ body: z.object({ email: z.string().trim().email() }) })), async (req, res, next) => {
     try {
-        if (!isEmailConfigured())
+        if (!await isEmailConfigured())
             throw new HttpError(503, "Password reset email service is not configured. Please contact support.", "EMAIL_NOT_CONFIGURED");
         const user = await User.findOne({ email: req.body.email.toLowerCase(), status: "ACTIVE" });
         if (!user) {

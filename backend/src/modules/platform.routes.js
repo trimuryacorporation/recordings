@@ -16,8 +16,13 @@ function maskConfiguredValue(value) {
     return value ? `${"•".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}` : "";
 }
 function settingsPayload(settings) {
+    const payload = json(settings);
+    const smtpPassword = payload.smtpPassword;
+    delete payload.smtpPassword;
     return {
-        ...json(settings),
+        ...payload,
+        smtpPasswordConfigured: Boolean(smtpPassword),
+        smtpPasswordMasked: maskConfiguredValue(smtpPassword),
         r2Endpoint: process.env.S3_ENDPOINT ?? "",
         r2AccountId: process.env.R2_ACCOUNT_ID ?? "",
         r2AccessKeyConfigured: Boolean(process.env.S3_ACCESS_KEY),
@@ -26,7 +31,7 @@ function settingsPayload(settings) {
 }
 async function saveR2Environment(values) {
     const envPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.env");
-    let content = await fs.readFile(envPath, "utf8");
+    let content = await fs.readFile(envPath, "utf8").catch(() => "");
     for (const [key, value] of Object.entries(values)) {
         if (value === undefined || value === "") continue;
         const line = `${key}=${JSON.stringify(value)}`;
@@ -1356,15 +1361,21 @@ platformRoutes.delete("/notifications/:id", async (req, res) => {
     res.json({ deleted: true });
 });
 platformRoutes.get("/settings", allowRoles("SUPER_ADMIN", "ADMIN"), async (_req, res) => {
-    res.json(settingsPayload(await AppSetting.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global" } }, { new: true, upsert: true })));
+    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { $setOnInsert: { key: "global" } }, { new: true, upsert: true }).select("+smtpPassword");
+    res.json(settingsPayload(settings));
 });
 platformRoutes.patch("/settings", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
-    const input = z.object({ organizationName: z.string().trim().min(2).max(150), supportEmail: z.union([z.literal(""), z.string().email()]), defaultCurrency: z.string().trim().min(3).max(3), recordingCountdown: z.coerce.number().int().min(0).max(30), defaultPageSize: z.coerce.number().int().min(10).max(200), requireQaReview: z.boolean(), emailNotifications: z.boolean(), r2Enabled: z.boolean(), r2Bucket: z.string().trim().min(3).max(120), r2SinglePrefix: z.string().trim().min(1).max(120), r2DualPrefix: z.string().trim().min(1).max(120), r2Endpoint: z.string().trim().url(), r2AccountId: z.string().trim().min(8).max(128), r2AccessKey: z.string().trim().max(256).optional(), r2SecretKey: z.string().trim().max(256).optional() }).parse(req.body);
-    const { r2Endpoint, r2AccountId, r2AccessKey, r2SecretKey, ...settingsInput } = input;
+    const input = z.object({
+        organizationName: z.string().trim().min(2).max(150), supportEmail: z.union([z.literal(""), z.string().email()]), defaultCurrency: z.string().trim().min(3).max(3),
+        recordingCountdown: z.coerce.number().int().min(0).max(30), defaultPageSize: z.coerce.number().int().min(10).max(200), requireQaReview: z.boolean(), emailNotifications: z.boolean(),
+        r2Enabled: z.boolean(), r2Bucket: z.string().trim().min(3).max(120), r2SinglePrefix: z.string().trim().min(1).max(120), r2DualPrefix: z.string().trim().min(1).max(120), r2Endpoint: z.string().trim().url(), r2AccountId: z.string().trim().min(8).max(128), r2AccessKey: z.string().trim().max(256).optional(), r2SecretKey: z.string().trim().max(256).optional(),
+        smtpHost: z.string().trim().max(255).optional().default(""), smtpPort: z.coerce.number().int().min(1).max(65535).optional().default(587), smtpSecure: z.boolean().optional().default(false), smtpUser: z.string().trim().max(255).optional().default(""), smtpPassword: z.string().trim().max(512).optional(), smtpFrom: z.union([z.literal(""), z.string().trim().email()]).optional().default("")
+    }).parse(req.body);
+    const { r2Endpoint, r2AccountId, r2AccessKey, r2SecretKey, smtpPassword, ...settingsInput } = input;
     await saveR2Environment({ S3_ENDPOINT: r2Endpoint, R2_ACCOUNT_ID: r2AccountId, S3_ACCESS_KEY: r2AccessKey, S3_SECRET_KEY: r2SecretKey });
-    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { ...settingsInput, updatedById: toObjectId(req.user.id) }, { new: true, upsert: true, runValidators: true });
-    await audit(req.user.id, "SETTINGS_UPDATED", "AppSetting", settings.id, { r2CredentialsUpdated: Boolean(r2AccessKey || r2SecretKey) });
-    res.json(settingsPayload(settings));
+    const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { ...settingsInput, ...(smtpPassword ? { smtpPassword } : {}), updatedById: toObjectId(req.user.id) }, { new: true, upsert: true, runValidators: true });
+    await audit(req.user.id, "SETTINGS_UPDATED", "AppSetting", settings.id, { r2CredentialsUpdated: Boolean(r2AccessKey || r2SecretKey), smtpPasswordUpdated: Boolean(smtpPassword) });
+    res.json(settingsPayload(await AppSetting.findById(settings.id).select("+smtpPassword")));
 });
 platformRoutes.get("/audit-logs", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     const { skip, limit } = pageArgs(req.query);
