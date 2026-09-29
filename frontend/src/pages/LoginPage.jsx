@@ -62,7 +62,7 @@ export function LoginPage() {
         <section className="w-full max-w-md rounded-2xl border border-white/15 bg-white/[.96] p-5 shadow-2xl shadow-slate-950/30 backdrop-blur sm:p-8">
           <div className="mb-6 sm:mb-8">
             <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-brand text-white shadow-lg shadow-teal-800/25"><AudioLines className="h-5 w-5" /></div>
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-brand">Trimurya Corporation</p>
+            <p className="text-xs font-bold uppercase tracking-[.18em] text-brand">TRT Tools</p>
             <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{forgotMode ? "Reset your password" : "Welcome back"}</h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">{forgotMode ? "Enter your work email and we will send a secure reset link." : "Sign in to access your secure recording workspace."}</p>
           </div>

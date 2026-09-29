@@ -209,7 +209,7 @@ export function ScriptRecordingPage() {
   return (
     <main className="h-dvh overflow-hidden bg-slate-50">
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b border-line bg-white px-3 sm:h-16 sm:px-5 lg:px-8">
-        <div className="flex min-w-0 items-center gap-2"><Mic className="h-5 w-5 shrink-0 text-brand" /><div className="min-w-0"><p className="truncate text-sm font-bold text-brand">Script Recorder</p><p className="hidden truncate text-xs text-muted sm:block">Trimurya Corporation Pvt. Ltd.</p></div></div>
+        <div className="flex min-w-0 items-center gap-2"><Mic className="h-5 w-5 shrink-0 text-brand" /><div className="min-w-0"><p className="truncate text-sm font-bold text-brand">Script Recorder</p><p className="hidden truncate text-xs text-muted sm:block">TRT Tools</p></div></div>
         <div className="relative" ref={profileMenu}>
           <button className="focus-ring flex h-10 items-center gap-2 rounded-md px-1.5 hover:bg-slate-100 sm:px-2" type="button" aria-expanded={profileOpen} aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)}>
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-teal-50 text-sm font-bold text-brand">{(user?.name ?? user?.email ?? "U").charAt(0).toUpperCase()}</span>

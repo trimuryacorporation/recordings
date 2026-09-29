@@ -13,7 +13,7 @@ const operation = (summary, tag, secured = true) => ({
 export const openApiDocument = {
     openapi: "3.0.3",
     info: {
-        title: "Trimurya Script Recording Platform API",
+        title: "TRT Tools API",
         version: "1.1.0",
         description: "REST API for users, projects, scripts, recording operations, QA, and reports."
     },

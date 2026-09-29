@@ -198,7 +198,7 @@ export const VendorPayment = mongoose.model("VendorPayment", new Schema({
 }, schemaOptions));
 export const AppSetting = mongoose.model("AppSetting", new Schema({
     key: { type: String, required: true, unique: true, default: "global" },
-    organizationName: { type: String, default: "Trimurya Corporation Pvt. Ltd." },
+    organizationName: { type: String, default: "TRT Tools" },
     supportEmail: { type: String, default: "" },
     defaultCurrency: { type: String, default: "INR" },
     recordingCountdown: { type: Number, default: 5, min: 0, max: 30 },

@@ -52,6 +52,25 @@ platformRoutes.post("/invitations/:token/guest-accept", async (req, res) => {
     res.json({ accessToken: signAccessToken(guest), user: { ...guest, name: "Participant B" }, sessionId: session.id, taskId: invitation.taskId ? String(invitation.taskId) : null, participantRole: "B" });
 });
 platformRoutes.use(requireAuth);
+platformRoutes.get("/search", async (req, res) => {
+    const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (query.length < 2) return res.json([]);
+    const regex = { $regex: query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+    const [projects, scripts, tasks, users, vendors] = await Promise.all([
+        Project.find({ $or: [{ name: regex }, { code: regex }] }).select("name code").limit(5),
+        Script.find({ $or: [{ title: regex }, { scriptCode: regex }] }).select("title scriptCode").limit(5),
+        RecordingTask.find({ taskCode: regex }).select("taskCode status").limit(5),
+        User.find({ $or: [{ name: regex }, { email: regex }] }).select("name email").limit(5),
+        Vendor.find({ $or: [{ companyName: regex }, { email: regex }] }).select("companyName email").limit(5)
+    ]);
+    res.json([
+        ...projects.map((row) => ({ id: row.id, type: "Project", title: row.name, detail: row.code, path: "/app/projects" })),
+        ...scripts.map((row) => ({ id: row.id, type: "Script", title: row.title, detail: row.scriptCode, path: "/app/scripts" })),
+        ...tasks.map((row) => ({ id: row.id, type: "Task", title: row.taskCode, detail: row.status, path: "/app/tasks" })),
+        ...users.map((row) => ({ id: row.id, type: "User", title: row.name, detail: row.email, path: "/app/users" })),
+        ...vendors.map((row) => ({ id: row.id, type: "Vendor", title: row.companyName, detail: row.email, path: "/app/vendors" }))
+    ]);
+});
 const publicUser = "name email role platformType recordingMode vendorId languages status lastActiveAt phone mobile";
 const pageArgs = (query) => {
     const page = Number(query.page ?? 1);

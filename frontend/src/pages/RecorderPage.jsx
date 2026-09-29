@@ -82,7 +82,7 @@ export function RecorderPage({ mode }) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader eyebrow="Trimurya Corporation Pvt. Ltd." title={`${mode === "single" ? "Single Recording" : "Recording"} Interface`} />
+      <PageHeader eyebrow="TRT Tools" title={`${mode === "single" ? "Single Recording" : "Recording"} Interface`} />
       {(error || task.error) && <ErrorState message={error || task.error} onRetry={() => { setError(""); task.reload(); }} />}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">

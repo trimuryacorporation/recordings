@@ -41,7 +41,7 @@ export function DashboardPage() {
   const cards = Object.entries(data?.cards ?? {});
 
   return <div className="space-y-6">
-    <PageHeader eyebrow="Live Operations" title="Trimurya Script Recording Platform" action={<Button type="button" variant="secondary" onClick={reload}><RefreshCcw className="h-4 w-4" />Refresh</Button>} />
+    <PageHeader eyebrow="Live Operations" title="TRT Tools" action={<Button type="button" variant="secondary" onClick={reload}><RefreshCcw className="h-4 w-4" />Refresh</Button>} />
 
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([key, value]) => {

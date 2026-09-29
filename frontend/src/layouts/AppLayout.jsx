@@ -4,7 +4,6 @@ import {
   FileText,
   Gauge,
   Home,
-  Landmark,
   ListChecks,
   LogOut,
   Menu,
@@ -17,9 +16,9 @@ import {
   WalletCards,
   X
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { currentUser, logout } from "../services/api";
+import { api, currentUser, logout } from "../services/api";
 
 const sections = [
   { title: "Dashboard", items: [{ label: "Dashboard", to: "/app", icon: Home }] },
@@ -36,7 +35,6 @@ const sections = [
   {
     title: "People",
     items: [
-      { label: "Clients", to: "/app/clients", icon: Landmark },
       { label: "Vendors", to: "/app/vendors", icon: Users },
       { label: "Users", to: "/app/users", icon: Users },
       { label: "QA Team", to: "/app/qa-team", icon: Shield }
@@ -89,8 +87,7 @@ function Sidebar({ user, onNavigate }) {
   return (
     <aside className="flex h-full flex-col border-r border-line bg-white">
       <div className="border-b border-line px-5 py-5">
-        <p className="text-sm font-bold text-brand">Trimurya Corporation Pvt. Ltd.</p>
-        <p className="mt-1 text-xs text-muted">Script Recording Platform</p>
+        <p className="text-sm font-bold text-brand">TRT Tools</p>
       </div>
       <nav className="app-scrollbar flex-1 overflow-y-auto px-3 py-4">
         {visibleSections.map((section) => (
@@ -123,9 +120,27 @@ function Sidebar({ user, onNavigate }) {
 
 export function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
   const user = currentUser();
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (query.length < 2) { setSearchResults([]); return undefined; }
+    const timer = window.setTimeout(async () => {
+      try { setSearchResults(await api(`/api/search?q=${encodeURIComponent(query)}`)); }
+      catch { setSearchResults([]); }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  function openSearchResult(result) {
+    setSearchQuery("");
+    setSearchResults([]);
+    navigate(result.path);
+  }
 
   function signOut() {
     logout();
@@ -169,9 +184,10 @@ export function AppLayout() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="flex min-w-0 flex-1 items-center gap-3 rounded-md border border-line bg-slate-50 px-3 py-2 text-sm text-muted">
-            <Search className="h-4 w-4 shrink-0" />
-            <span className="truncate">Global search</span>
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input className="focus-ring h-9 w-full rounded-md border border-line bg-slate-50 py-2 pl-9 pr-3 text-sm text-ink placeholder:text-muted" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && searchResults[0]) openSearchResult(searchResults[0]); if (event.key === "Escape") { setSearchQuery(""); setSearchResults([]); } }} placeholder="Search projects, tasks, users, vendors..." aria-label="Global search" />
+            {searchQuery.trim().length >= 2 && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-30 overflow-hidden rounded-md border border-line bg-white shadow-lg">{searchResults.length ? <div className="max-h-80 overflow-y-auto py-1">{searchResults.map((result) => <button key={`${result.type}-${result.id}`} type="button" onMouseDown={(event) => { event.preventDefault(); openSearchResult(result); }} className="flex w-full items-center justify-between gap-4 px-3 py-2.5 text-left hover:bg-teal-50"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink">{result.title}</span><span className="block truncate text-xs text-muted">{result.detail}</span></span><span className="shrink-0 rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">{result.type}</span></button>)}</div> : <p className="px-3 py-3 text-sm text-muted">No matching records found.</p>}</div>}
           </div>
           <button type="button" className="hidden min-w-0 rounded-md px-3 py-2 text-right hover:bg-slate-100 md:block" onClick={() => navigate("/app/profile")} aria-label="Open my profile">
             <span className="flex items-center justify-end gap-2"><UserCircle className="h-5 w-5 text-brand" /><span><span className="block truncate text-sm font-semibold">{user?.name ?? user?.email}</span><span className="block text-xs text-muted">{user?.role}</span></span></span>

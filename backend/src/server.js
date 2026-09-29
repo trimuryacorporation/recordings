@@ -1,4 +1,4 @@
-﻿import "./core/env.js";
+import "./core/env.js";
 import crypto from "node:crypto";
 import http from "node:http";
 import cookieParser from "cookie-parser";
@@ -32,15 +32,15 @@ app.use(cookieParser());
 app.use(morgan("dev"));
 app.get("/", (_req, res) => res.json({
     ok: true,
-    service: "Trimurya Script Recording Platform API",
+    service: "TRT Tools API",
     health: "/health",
     status: "/api/status",
     docs: "/api/docs"
 }));
-app.get("/health", (_req, res) => res.json({ ok: true, service: "Trimurya Script Recording Platform API" }));
+app.get("/health", (_req, res) => res.json({ ok: true, service: "TRT Tools API" }));
 app.get("/api/status", (_req, res) => res.json({
     ok: mongoose.connection.readyState === 1,
-    service: "Trimurya Script Recording Platform API",
+    service: "TRT Tools API",
     version: openApiDocument.info.version,
     database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     timestamp: new Date().toISOString()
@@ -72,7 +72,7 @@ if (scriptsWithoutTasks.length) {
     console.log(`Created ${scriptsWithoutTasks.length} missing recording tasks.`);
 }
 server.listen(port, () => {
-    console.log(`Trimurya API running on http://localhost:${port}`);
+    console.log(`TRT Tools API running on http://localhost:${port}`);
 });
 process.on("SIGINT", async () => {
     await disconnectMongo();

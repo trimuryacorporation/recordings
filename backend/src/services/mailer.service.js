@@ -24,10 +24,10 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }) {
   });
   const safeName = escapeHtml(name || "there");
   await transport.sendMail({
-    from: process.env.SMTP_FROM ?? "Trimurya Recording Platform <collab@trimuryacorporation.in>",
+    from: process.env.SMTP_FROM ?? "TRT Tools <collab@trimuryacorporation.in>",
     to,
-    subject: "Reset your Trimurya Recording Platform password",
+    subject: "Reset your TRT Tools password",
     text: `Hello ${name || "there"},\n\nUse this link to reset your password: ${resetUrl}\n\nThis link expires in 30 minutes. If you did not request this, you can safely ignore this email.`,
-    html: `<div style="font-family:Arial,sans-serif;color:#172033;line-height:1.6"><h2>Password reset request</h2><p>Hello ${safeName},</p><p>We received a request to reset your Trimurya Recording Platform password.</p><p><a href="${resetUrl}" style="display:inline-block;background:#0f766e;color:#fff;padding:12px 18px;border-radius:6px;text-decoration:none;font-weight:700">Reset password</a></p><p>This link expires in 30 minutes. If you did not request this, you can safely ignore this email.</p></div>`
+    html: `<div style="font-family:Arial,sans-serif;color:#172033;line-height:1.6"><h2>Password reset request</h2><p>Hello ${safeName},</p><p>We received a request to reset your TRT Tools password.</p><p><a href="${resetUrl}" style="display:inline-block;background:#0f766e;color:#fff;padding:12px 18px;border-radius:6px;text-decoration:none;font-weight:700">Reset password</a></p><p>This link expires in 30 minutes. If you did not request this, you can safely ignore this email.</p></div>`
   });
 }
