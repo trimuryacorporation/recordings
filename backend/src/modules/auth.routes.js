@@ -13,6 +13,14 @@ function passwordResetAppUrl(req) {
     if (origin && corsOrigins.includes(origin)) return origin;
     return (process.env.APP_URL ?? "https://trt.trimuryacorporation.in").replace(/\/$/, "");
 }
+function requestIp(req) {
+    const forwarded = req.headers["x-forwarded-for"];
+    return (Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(",")[0])?.trim() ?? req.ip;
+}
+function sessionCookieOptions() {
+    const production = process.env.NODE_ENV === "production";
+    return { httpOnly: true, secure: production, sameSite: production ? "none" : "lax", path: "/" };
+}
 export const authRoutes = Router();
 authRoutes.post("/login", validate(z.object({ body: z.object({ email: z.string().email(), password: z.string().min(8) }) })), async (req, res, next) => {
     try {
@@ -32,7 +40,15 @@ authRoutes.post("/login", validate(z.object({ body: z.object({ email: z.string()
         next(error);
     }
 });
-authRoutes.post("/forgot-password", validate(z.object({ body: z.object({ email: z.string().trim().email() }) })), async (req, res, next) => {
+authRoutes.post("/login-location", requireAuth, validate(z.object({ body: z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), accuracy: z.number().min(0).max(100_000).optional() }) })), async (req, res, next) => {
+    try {
+        await audit(req.user.id, "LOGIN_LOCATION_RECORDED", "User", req.user.id, { location: { latitude: req.body.latitude, longitude: req.body.longitude, accuracy: req.body.accuracy, capturedAt: new Date().toISOString() } }, requestIp(req));
+        res.status(204).end();
+    }
+    catch (error) {
+        next(error);
+    }
+});authRoutes.post("/forgot-password", validate(z.object({ body: z.object({ email: z.string().trim().email() }) })), async (req, res, next) => {
     try {
         if (!await isEmailConfigured())
             throw new HttpError(503, "Password reset email service is not configured. Please contact support.", "EMAIL_NOT_CONFIGURED");

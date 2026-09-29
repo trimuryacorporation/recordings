@@ -17,6 +17,7 @@ export function AuditLogsPage() {
             { header: "Actor", cell: (row) => row.actor?.email ?? "System" },
             { header: "Action", cell: (row) => row.action },
             { header: "Entity", cell: (row) => `${row.entity}${row.entityId ? ` / ${row.entityId}` : ""}` },
+            { header: "Location", cell: (row) => row.metadata?.location ? `${row.metadata.location.latitude.toFixed(5)}, ${row.metadata.location.longitude.toFixed(5)} (${Math.round(row.metadata.location.accuracy ?? 0)}m)` : row.ip ?? "-" },
             { header: "Timestamp", cell: (row) => new Date(row.createdAt).toLocaleString() }
           ]}
         />

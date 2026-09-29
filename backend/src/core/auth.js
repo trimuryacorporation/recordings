@@ -37,6 +37,6 @@ export const allowRoles = (...allowed) => (req, _res, next) => {
     }
     next();
 };
-export async function audit(actorId, action, entity, entityId, metadata) {
-    await AuditLog.create({ actorId, action, entity, entityId, metadata: metadata ?? {} });
+export async function audit(actorId, action, entity, entityId, metadata, ip) {
+    await AuditLog.create({ actorId, action, entity, entityId, ip, metadata: metadata ?? {} });
 }

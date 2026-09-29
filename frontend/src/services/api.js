@@ -51,6 +51,19 @@ export async function fetchBinary(path) {
     if (!response.ok) throw new Error("Unable to download the audio file.");
     return response.blob();
 }
+function recordLoginLocation() {
+    if (!("geolocation" in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            void api("/api/auth/login-location", {
+                method: "POST",
+                body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy })
+            }).catch(() => {});
+        },
+        () => {},
+        { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60 * 1000 }
+    );
+}
 export async function login(email, password) {
     const result = await api("/api/auth/login", {
         method: "POST",
