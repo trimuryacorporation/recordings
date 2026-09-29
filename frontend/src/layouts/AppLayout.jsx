@@ -176,10 +176,10 @@ export function AppLayout() {
       )}
 
       <main className="lg:pl-72">
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b border-line bg-white px-4 lg:px-8">
+        <header className="sticky top-0 z-10 flex min-h-[72px] items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-sm shadow-slate-950/[0.03] backdrop-blur lg:px-8">
           <button
             type="button"
-            className="rounded-md p-2 text-slate-700 hover:bg-slate-100 lg:hidden"
+            className="rounded-xl border border-line bg-white p-2 text-slate-700 shadow-sm hover:bg-slate-50 lg:hidden"
             onClick={() => setMenuOpen(true)}
             aria-label="Open navigation"
           >
@@ -187,13 +187,13 @@ export function AppLayout() {
           </button>
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input className="focus-ring h-9 w-full rounded-md border border-line bg-slate-50 py-2 pl-9 pr-3 text-sm text-ink placeholder:text-muted" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && searchResults[0]) openSearchResult(searchResults[0]); if (event.key === "Escape") { setSearchQuery(""); setSearchResults([]); } }} placeholder="Search projects, tasks, users, vendors..." aria-label="Global search" />
+            <input className="focus-ring h-10 w-full rounded-xl border border-line bg-slate-50/80 py-2 pl-10 pr-3 text-sm text-ink shadow-inner shadow-slate-950/[0.02] placeholder:text-muted transition focus:bg-white" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && searchResults[0]) openSearchResult(searchResults[0]); if (event.key === "Escape") { setSearchQuery(""); setSearchResults([]); } }} placeholder="Search projects, tasks, users, vendors..." aria-label="Global search" />
             {searchQuery.trim().length >= 2 && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-30 overflow-hidden rounded-md border border-line bg-white shadow-lg">{searchResults.length ? <div className="max-h-80 overflow-y-auto py-1">{searchResults.map((result) => <button key={`${result.type}-${result.id}`} type="button" onMouseDown={(event) => { event.preventDefault(); openSearchResult(result); }} className="flex w-full items-center justify-between gap-4 px-3 py-2.5 text-left hover:bg-teal-50"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink">{result.title}</span><span className="block truncate text-xs text-muted">{result.detail}</span></span><span className="shrink-0 rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">{result.type}</span></button>)}</div> : <p className="px-3 py-3 text-sm text-muted">No matching records found.</p>}</div>}
           </div>
-          <button type="button" className="hidden min-w-0 rounded-md px-3 py-2 text-right hover:bg-slate-100 md:block" onClick={() => navigate("/app/profile")} aria-label="Open my profile">
-            <span className="flex items-center justify-end gap-2"><UserCircle className="h-5 w-5 text-brand" /><span><span className="block truncate text-sm font-semibold">{user?.name ?? user?.email}</span><span className="block text-xs text-muted">{user?.role}</span></span></span>
+          <button type="button" className="hidden min-w-0 rounded-xl border border-transparent px-3 py-2 text-right transition hover:border-line hover:bg-slate-50 md:block" onClick={() => navigate("/app/profile")} aria-label="Open my profile">
+            <span className="flex items-center justify-end gap-2"><span className="grid h-9 w-9 place-items-center rounded-full bg-teal-50 text-sm font-bold text-brand">{(user?.name ?? user?.email ?? "U").charAt(0).toUpperCase()}</span><span><span className="block truncate text-sm font-semibold">{user?.name ?? user?.email}</span><span className="block text-xs text-muted">{user?.role}</span></span></span>
           </button>
-          <button className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-slate-100" onClick={signOut}>
+          <button className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 hover:text-danger" onClick={signOut}>
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Logout</span>
           </button>
