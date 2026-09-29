@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { AudioLines, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Input } from "../components/ui/primitives";
 import loginBackground from "../assets/login-workspace-ai.png";
+import trimuryaLogo from "../assets/trimurya-corporation-logo.png";
 import { currentUser, login, platformHome, requestPasswordReset } from "../services/api";
 
 export function LoginPage() {

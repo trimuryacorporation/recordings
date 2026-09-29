@@ -19,6 +19,7 @@ import {
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api, currentUser, logout } from "../services/api";
+import trimuryaLogo from "../assets/trimurya-corporation-logo.png";
 
 const sections = [
   { title: "Dashboard", items: [{ label: "Dashboard", to: "/app", icon: Home }] },
@@ -87,7 +88,7 @@ function Sidebar({ user, onNavigate }) {
   return (
     <aside className="flex h-full flex-col border-r border-line bg-white">
       <div className="border-b border-line px-5 py-5">
-        <p className="text-sm font-bold text-brand">TRT Tools</p>
+        <img src={trimuryaLogo} alt="Trimurya Corporation" className="h-9 w-auto max-w-full object-contain object-left" />
       </div>
       <nav className="app-scrollbar flex-1 overflow-y-auto px-3 py-4">
         {visibleSections.map((section) => (
