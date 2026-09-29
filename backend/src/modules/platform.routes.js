@@ -1368,11 +1368,13 @@ platformRoutes.patch("/settings", allowRoles("SUPER_ADMIN", "ADMIN"), async (req
     const input = z.object({
         organizationName: z.string().trim().min(2).max(150), supportEmail: z.union([z.literal(""), z.string().email()]), defaultCurrency: z.string().trim().min(3).max(3),
         recordingCountdown: z.coerce.number().int().min(0).max(30), defaultPageSize: z.coerce.number().int().min(10).max(200), requireQaReview: z.boolean(), emailNotifications: z.boolean(),
-        r2Enabled: z.boolean(), r2Bucket: z.string().trim().min(3).max(120), r2SinglePrefix: z.string().trim().min(1).max(120), r2DualPrefix: z.string().trim().min(1).max(120), r2Endpoint: z.string().trim().url(), r2AccountId: z.string().trim().min(8).max(128), r2AccessKey: z.string().trim().max(256).optional(), r2SecretKey: z.string().trim().max(256).optional(),
-        smtpHost: z.string().trim().max(255).optional().default(""), smtpPort: z.coerce.number().int().min(1).max(65535).optional().default(587), smtpSecure: z.boolean().optional().default(false), smtpUser: z.string().trim().max(255).optional().default(""), smtpPassword: z.string().trim().max(512).optional(), smtpFrom: z.union([z.literal(""), z.string().trim().email()]).optional().default("")
-    }).parse(req.body);
+        r2Enabled: z.boolean(), r2Bucket: z.string().trim().min(3).max(120), r2SinglePrefix: z.string().trim().min(1).max(120), r2DualPrefix: z.string().trim().min(1).max(120), r2Endpoint: z.string().trim().url(), r2AccountId: z.string().trim().min(8).max(128), r2AccessKey: z.string().trim().max(256), r2SecretKey: z.string().trim().max(256),
+        smtpHost: z.string().trim().max(255), smtpPort: z.coerce.number().int().min(1).max(65535), smtpSecure: z.boolean(), smtpUser: z.string().trim().max(255), smtpPassword: z.string().trim().max(512), smtpFrom: z.string().trim().max(320).refine((value) => !value.includes("\n") && !value.includes("\r"), "SMTP sender must be one line")
+    }).partial().parse(req.body);
+    if (!Object.keys(input).length) throw new HttpError(400, "Choose at least one setting to save.", "SETTINGS_EMPTY");
     const { r2Endpoint, r2AccountId, r2AccessKey, r2SecretKey, smtpPassword, ...settingsInput } = input;
-    await saveR2Environment({ S3_ENDPOINT: r2Endpoint, R2_ACCOUNT_ID: r2AccountId, S3_ACCESS_KEY: r2AccessKey, S3_SECRET_KEY: r2SecretKey });
+    const r2Values = { S3_ENDPOINT: r2Endpoint, R2_ACCOUNT_ID: r2AccountId, S3_ACCESS_KEY: r2AccessKey, S3_SECRET_KEY: r2SecretKey };
+    if (Object.values(r2Values).some((value) => value !== undefined)) await saveR2Environment(r2Values);
     const settings = await AppSetting.findOneAndUpdate({ key: "global" }, { ...settingsInput, ...(smtpPassword ? { smtpPassword } : {}), updatedById: toObjectId(req.user.id) }, { new: true, upsert: true, runValidators: true });
     await audit(req.user.id, "SETTINGS_UPDATED", "AppSetting", settings.id, { r2CredentialsUpdated: Boolean(r2AccessKey || r2SecretKey), smtpPasswordUpdated: Boolean(smtpPassword) });
     res.json(settingsPayload(await AppSetting.findById(settings.id).select("+smtpPassword")));
