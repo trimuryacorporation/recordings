@@ -1,7 +1,8 @@
 import { Server } from "socket.io";
+import { corsOptions } from "../core/cors.js";
 export function attachRealtime(httpServer) {
     const io = new Server(httpServer, {
-        cors: { origin: process.env.APP_URL ?? "http://localhost:5173", credentials: true }
+        cors: corsOptions
     });
     io.on("connection", (socket) => {
         socket.on("session:join", ({ sessionId, participantLabel }) => {

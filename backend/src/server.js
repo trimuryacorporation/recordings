@@ -9,6 +9,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import mongoose from "mongoose";
 import swaggerUi from "swagger-ui-express";
+import { corsOptions } from "./core/cors.js";
 import { friendlyError } from "./core/http.js";
 import { connectMongo, disconnectMongo } from "./core/mongo.js";
 import { RecordingTask, Script } from "./core/models.js";
@@ -20,12 +21,7 @@ const app = express();
 // Render provides its listening port through PORT. Keep BACKEND_PORT for local development.
 const port = Number(process.env.PORT ?? process.env.BACKEND_PORT ?? 4000);
 app.use(helmet());
-const allowedOrigins = [...new Set([
-    "http://localhost:5173",
-    "https://records.trimuryacorporation.in",
-    ...(process.env.APP_URL ?? "").split(",").map((origin) => origin.trim()).filter(Boolean)
-])];
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(cors(corsOptions));
 app.use(rateLimit({ windowMs: 60_000, limit: 120 }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
