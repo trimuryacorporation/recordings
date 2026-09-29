@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AudioLines, ChevronLeft, LockKeyhole, ShieldCheck } from "lucide-react";
+import { AudioLines, ChevronLeft } from "lucide-react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Input } from "../components/ui/primitives";
 import loginBackground from "../assets/login-workspace-ai.png";
@@ -83,9 +83,7 @@ export function LoginPage() {
               <button type="button" onClick={() => { setForgotMode(true); setError(""); }} className="w-full text-center text-sm font-semibold text-brand transition hover:text-teal-800">Forgot password?</button>
             </form>
           )}
-          <div className="mt-7 flex items-center gap-3 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500"><ShieldCheck className="h-5 w-5 shrink-0 text-brand" /><span>Your access is protected with enterprise-grade security.</span></div>
         </section>
-        <div className="pointer-events-none absolute bottom-0 left-0 hidden items-center gap-2 text-sm text-slate-200 lg:flex"><LockKeyhole className="h-4 w-4 text-teal-300" /> Secure recording operations</div>
       </div>
     </main>
   );
