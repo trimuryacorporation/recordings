@@ -274,6 +274,7 @@ export function DualSessionPage() {
     PROCESSING: "Processing"
   }[state] ?? state;
 
+  const participantBJoined = participants.some((participant) => participant.label === "B" && participant.connection === "CONNECTED");
   async function markReady() {
     if (!stream) { setError("Microphone permission is required."); return; }
     setBusy(true);
@@ -414,6 +415,7 @@ export function DualSessionPage() {
           </div>
         )}
         <p className="mt-2 hidden items-center gap-1.5 text-xs text-muted sm:flex sm:mt-3"><Wifi className="shrink-0" size={14} />Both tracks stay synchronized.</p>
+        {participantBJoined && <p className="mt-2 flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-2 text-xs font-semibold text-success sm:mt-3"><CheckCircle2 size={14} />Participant B joined ? both devices are connected.</p>}
         </Card>
       </div>
       <Card headerClassName="px-3 py-2.5 sm:px-5 sm:py-4" bodyClassName="p-0" title={task?.script?.title ?? "Recording Script"} action={<Badge tone={role === "A" ? "accent" : "neutral"}>Participant {role || "-"}</Badge>}>
