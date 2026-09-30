@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Download, Pencil, Search, Trash2, Upload, X } from "lucide-react";
 import { useDeferredValue, useMemo, useRef, useState } from "react";
 import { DataTable } from "../components/DataTable";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal";
 import { Badge, Button, Card, ErrorState, Input, PageHeader, Select, Textarea } from "../components/ui/primitives";
 import { useApiResource } from "../hooks/useApiResource";
 import { api } from "../services/api";
@@ -93,6 +94,8 @@ export function ScriptsPage() {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState("");
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const fileInput = useRef(null);
 
   function updateFilter(field, value) {
@@ -144,17 +147,41 @@ export function ScriptsPage() {
     setCreateResult("");
   }
 
-  async function deleteScript(row) {
-    if (!window.confirm(`Permanently delete script "${row.title}"? Its task records and version history will also be removed from MongoDB. This cannot be undone.`)) return;
+  function requestDeleteScript(row) {
+    setPendingDelete({ type: "single", row });
+  }
+
+  function requestDeleteAll() {
+    if (scripts.data.total) setPendingDelete({ type: "all", count: scripts.data.total });
+  }
+
+  async function confirmDelete() {
+    const pending = pendingDelete;
+    if (!pending) return;
+    setDeleting(true);
     setError("");
     setCreateResult("");
     try {
-      await api(`/api/scripts/${row.id}`, { method: "DELETE" });
-      if (editingScriptId === row.id) cancelEdit();
+      if (pending.type === "single") {
+        await api(`/api/scripts/${pending.row.id}`, { method: "DELETE" });
+        if (editingScriptId === pending.row.id) cancelEdit();
+        setCreateResult(`Script deleted: ${pending.row.scriptCode}`);
+      } else {
+        const params = new URLSearchParams();
+        if (deferredSearch.trim()) params.set("search", deferredSearch.trim());
+        if (filters.projectId) params.set("projectId", filters.projectId);
+        if (filters.language) params.set("language", filters.language);
+        if (filters.recordingType) params.set("recordingType", filters.recordingType);
+        const result = await api(`/api/scripts?${params.toString()}`, { method: "DELETE" });
+        if (editingScriptId) cancelEdit();
+        setCreateResult(`${result.deleted} scripts deleted.`);
+      }
+      setPendingDelete(null);
       await scripts.reload();
-      setCreateResult(`Script deleted: ${row.scriptCode}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete script.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -246,7 +273,7 @@ export function ScriptsPage() {
         </form>
       </Card>
 
-      <Card title="Script Library" action={<span className="text-xs font-medium text-muted">{scripts.data.total} results</span>}>
+      <Card title="Script Library" action={<div className="flex items-center gap-3"><span className="text-xs font-medium text-muted">{scripts.data.total} results</span><Button type="button" variant="danger" className="h-8 !px-3" disabled={!scripts.data.total || deleting} onClick={requestDeleteAll}><Trash2 size={14} />Delete All</Button></div>}>
         <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="relative md:col-span-2 xl:col-span-1"><span className="sr-only">Search scripts</span><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted" /><Input className="pl-9" placeholder="Search scripts" value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} /></label>
           <Select value={filters.projectId} onChange={(event) => updateFilter("projectId", event.target.value)}><option value="">All projects</option>{projects.data.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</Select>
@@ -282,7 +309,7 @@ export function ScriptsPage() {
                   <Button type="button" variant="secondary" className="h-8 !px-3" onClick={() => editScript(row)}>
                     <Pencil size={14} /> Edit
                   </Button>
-                  <Button type="button" variant="ghost" className="h-8 !px-3 text-danger hover:bg-red-50" onClick={() => deleteScript(row)}>
+                  <Button type="button" variant="ghost" className="h-8 !px-3 text-danger hover:bg-red-50" onClick={() => requestDeleteScript(row)}>
                     <Trash2 size={14} /> Delete
                   </Button>
                 </div>
@@ -298,6 +325,16 @@ export function ScriptsPage() {
           </div>
         </div>
       </Card>
+      {pendingDelete && <ConfirmDeleteModal
+        title={pendingDelete.type === "all" ? "Delete All Scripts" : "Delete Script"}
+        message={pendingDelete.type === "all"
+          ? `Are you sure you want to delete all ${pendingDelete.count} scripts matching the current filters? Their tasks, recordings, version history, and audio files will also be permanently deleted.`
+          : <>Are you sure you want to delete <strong className="text-ink">{pendingDelete.row.title}</strong>? Its task records and version history will also be permanently deleted.</>}
+        confirmLabel={pendingDelete.type === "all" ? "Yes, Delete All" : "Yes, Delete"}
+        busy={deleting}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+      />}
     </div>
   );
 }

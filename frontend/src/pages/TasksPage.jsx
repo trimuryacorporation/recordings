@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, ExternalLink, Pencil, RefreshCcw, Search, Tr
 import { useDeferredValue, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { DataTable } from "../components/DataTable";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal";
 import { Badge, Button, Card, ErrorState, Input, PageHeader, Select } from "../components/ui/primitives";
 import { useApiResource } from "../hooks/useApiResource";
 import { api, currentUser } from "../services/api";
@@ -46,6 +47,8 @@ export function TasksPage() {
   const [editingTask, setEditingTask] = useState(null);
   const [editAssignment, setEditAssignment] = useState({ vendorId: "", participantAId: "" });
   const [updatingTask, setUpdatingTask] = useState(false);
+  const [pendingDeleteTask, setPendingDeleteTask] = useState(null);
+  const [deletingTask, setDeletingTask] = useState(false);
 
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }));
@@ -115,8 +118,14 @@ export function TasksPage() {
     }
   }
 
-  async function deleteTask(task) {
-    if (!window.confirm(`Delete task "${task.taskCode}"?`)) return;
+  function requestDeleteTask(task) {
+    setPendingDeleteTask(task);
+  }
+
+  async function confirmDeleteTask() {
+    const task = pendingDeleteTask;
+    if (!task) return;
+    setDeletingTask(true);
     setError("");
     setSelectionResult("");
     try {
@@ -125,8 +134,11 @@ export function TasksPage() {
       setSelectedIds((current) => current.filter((id) => id !== task.id));
       await tasks.reload();
       setSelectionResult(`Task deleted: ${task.taskCode}`);
+      setPendingDeleteTask(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete task.");
+    } finally {
+      setDeletingTask(false);
     }
   }
 
@@ -358,7 +370,7 @@ export function TasksPage() {
                     <Pencil size={14} /> Edit
                   </Button>
                   {!isVendor && (
-                    <Button type="button" variant="ghost" className="h-8 !px-3 text-danger hover:bg-red-50" disabled={!["UNASSIGNED", "ASSIGNED"].includes(row.status)} onClick={() => deleteTask(row)}>
+                    <Button type="button" variant="ghost" className="h-8 !px-3 text-danger hover:bg-red-50" disabled={!["UNASSIGNED", "ASSIGNED"].includes(row.status)} onClick={() => requestDeleteTask(row)}>
                       <Trash2 size={14} /> Delete
                     </Button>
                   )}
@@ -381,6 +393,13 @@ export function TasksPage() {
           </div>
         </div>
       </Card>
+      {pendingDeleteTask && <ConfirmDeleteModal
+        title="Delete Task"
+        message={<>Are you sure you want to delete <strong className="text-ink">{pendingDeleteTask.taskCode}</strong>?</>}
+        busy={deletingTask}
+        onCancel={() => setPendingDeleteTask(null)}
+        onConfirm={confirmDeleteTask}
+      />}
     </div>
   );
 }

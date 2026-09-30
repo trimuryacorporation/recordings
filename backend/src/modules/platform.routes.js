@@ -524,6 +524,36 @@ platformRoutes.delete("/scripts/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async 
     await audit(req.user?.id, "SCRIPT_DELETED", "Script", script.id, { permanent: true, deletedVersions: versions.deletedCount, deletedTasks: tasks.deletedCount, deletedAudio });
     res.json({ deleted: true, id: script.id, deletedVersions: versions.deletedCount, deletedTasks: tasks.deletedCount, deletedAudio });
 });
+platformRoutes.delete("/scripts", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const where = {
+        deletedAt: { $exists: false },
+        ...(search ? { $or: ["title", "scriptCode", "currentText"].map((field) => ({ [field]: { $regex: escapedSearch, $options: "i" } })) } : {}),
+        ...(typeof req.query.projectId === "string" && req.query.projectId ? { projectId: toObjectId(req.query.projectId) } : {}),
+        ...(typeof req.query.language === "string" && req.query.language ? { language: req.query.language } : {}),
+        ...(typeof req.query.recordingType === "string" && req.query.recordingType ? { recordingType: req.query.recordingType } : {})
+    };
+    const scripts = await Script.find(where);
+    await Promise.all(scripts.map((script) => deleteScriptPermanently(script, req.user)));
+    await audit(req.user?.id, "SCRIPTS_BULK_DELETED", "Script", undefined, { count: scripts.length, filters: req.query });
+    res.json({ deleted: scripts.length });
+});
+async function deleteScriptPermanently(script, user) {
+    const taskIds = (await RecordingTask.find({ scriptId: script.id }).select("_id")).map((task) => task._id);
+    const linkedRecordings = taskIds.length ? await Recording.find({ taskId: { $in: taskIds } }).select("_id sessionId") : [];
+    const recordingIds = linkedRecordings.map((recording) => recording._id);
+    const sessionIds = linkedRecordings.map((recording) => recording.sessionId).filter(Boolean);
+    const deletedAudio = recordingIds.length ? await deleteRecordingMedia(recordingIds) : 0;
+    if (sessionIds.length) await RecordingSession.updateMany({ _id: { $in: sessionIds } }, { $unset: { "syncMetadata.recordingId": 1 } });
+    const [versions, tasks] = await Promise.all([
+        ScriptVersion.deleteMany({ scriptId: script.id }),
+        RecordingTask.deleteMany({ scriptId: script.id })
+    ]);
+    await Script.findByIdAndDelete(script.id);
+    await audit(user?.id, "SCRIPT_DELETED", "Script", script.id, { permanent: true, deletedVersions: versions.deletedCount, deletedTasks: tasks.deletedCount, deletedAudio });
+    return { deletedVersions: versions.deletedCount, deletedTasks: tasks.deletedCount, deletedAudio };
+}
 platformRoutes.get("/tasks", async (req, res) => {
     const { skip, limit } = pageArgs(req.query);
     const actor = req.user.role === "VENDOR" ? await User.findById(req.user.id).select("vendorId") : null;
