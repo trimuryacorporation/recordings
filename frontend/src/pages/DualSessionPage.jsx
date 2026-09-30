@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, LogIn, Pause, Play, RotateCcw, Square, UserCheck, Wifi } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, CameraOff, CheckCircle2, LogIn, Pause, Play, RotateCcw, Square, UserCheck, Wifi } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -47,6 +47,8 @@ export function DualSessionPage() {
   const [countdown, setCountdown] = useState(null);
   const [seconds, setSeconds] = useState(0);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
   const [uploadedParticipants, setUploadedParticipants] = useState([]);
   const recorderRef = useRef(null);
   const recordingAuthorizedRef = useRef(false);
@@ -290,6 +292,22 @@ export function DualSessionPage() {
   }
 
   async function control(action) {
+  async function toggleCamera() {
+    if (cameraEnabled) {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+      setCameraEnabled(false);
+      return;
+    }
+    try {
+      const next = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setCameraStream(next);
+      setCameraEnabled(true);
+    } catch {
+      setError("Camera permission is required to turn the camera on.");
+    }
+  }
+
     setBusy(true);
     setError("");
     try {
@@ -380,10 +398,11 @@ export function DualSessionPage() {
             {participant.label === "B" && <div className="mb-0.5 flex items-center justify-between gap-1 sm:mb-1.5"><h3 className="text-[11px] font-semibold text-ink sm:text-sm">Participant B</h3><div className="flex items-center gap-1">{countdown !== null && <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-50 px-1 text-[10px] font-bold text-warning sm:h-8 sm:min-w-8 sm:text-sm">{countdown}</span>}{role === "B" && <Button aria-label={participant.ready ? "Participant B ready" : "Run readiness check"} title={participant.ready ? "Ready" : "Check readiness"} className="h-6 w-6 !p-0 sm:h-8 sm:w-8" onClick={markReady} disabled={participant.ready || busy}><UserCheck size={12} /></Button>}</div></div>}
             <div className="grid grid-cols-4 gap-0.5 sm:gap-2">
               <ParticipantStatus label="Connection" shortLabel="Conn." value={participant.connection === "CONNECTED" ? "Connected" : "Waiting"} shortValue={participant.connection === "CONNECTED" ? "On" : "Wait"} ready={participant.connection === "CONNECTED"} />
-              <ParticipantStatus label="Microphone" shortLabel="Mic" value={participant.micReady ? "Ready" : "Pending"} shortValue={participant.micReady ? "OK" : "Wait"} ready={participant.micReady} />
-              <ParticipantStatus label="Camera" shortLabel="Cam" value={participant.cameraReady ? "Ready" : "Pending"} shortValue={participant.cameraReady ? "OK" : "Wait"} ready={participant.cameraReady} />
+              <ParticipantStatus label="Microphone" shortLabel="Mic" value={(participant.label === role ? Boolean(stream?.getAudioTracks().some((track) => track.readyState === "live" && track.enabled)) : participant.micReady) ? "Ready" : "Pending"} shortValue={(participant.label === role ? Boolean(stream?.getAudioTracks().some((track) => track.readyState === "live" && track.enabled)) : participant.micReady) ? "OK" : "Wait"} ready={participant.label === role ? Boolean(stream?.getAudioTracks().some((track) => track.readyState === "live" && track.enabled)) : participant.micReady} />
+              <ParticipantStatus label="Camera" shortLabel="Cam" value={(participant.label === role ? cameraEnabled : participant.cameraReady) ? "On" : "Off"} shortValue={(participant.label === role ? cameraEnabled : participant.cameraReady) ? "On" : "Off"} ready={participant.label === role ? cameraEnabled : participant.cameraReady} />
               <ParticipantStatus label="Network" shortLabel="Net" value={participant.networkOk ? "Stable" : "Check"} shortValue={participant.networkOk ? "OK" : "Check"} ready={participant.networkOk} />
             </div>
+            {participant.label === role && <div className="mt-1 flex justify-end sm:mt-2"><Button type="button" variant="secondary" className="h-7 !px-2 text-[10px] sm:h-8 sm:text-xs" onClick={toggleCamera}>{cameraEnabled ? <CameraOff size={13} /> : <Camera size={13} />}{cameraEnabled ? "Camera off" : "Camera on"}</Button></div>}
           </section>
         ))}
         </Card>
