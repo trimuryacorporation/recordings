@@ -19,6 +19,10 @@ export function attachRealtime(httpServer) {
             io.to(`session:${sessionId}`).emit("session:upload-complete", { participantLabel });
         });
         socket.on("upload:progress", ({ sessionId, uploadId, progress }) => {
+        socket.on("session:webrtc", ({ sessionId, type, payload }) => {
+            if (!sessionId || !["offer", "answer", "ice"].includes(type)) return;
+            socket.to(`session:${sessionId}`).emit("session:webrtc", { type, payload });
+        });
             io.to(`session:${sessionId}`).emit("upload:progress", { uploadId, progress });
         });
     });
