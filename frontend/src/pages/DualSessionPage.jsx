@@ -291,7 +291,6 @@ export function DualSessionPage() {
     }
   }
 
-  async function control(action) {
   async function toggleCamera() {
     if (cameraEnabled) {
       cameraStream?.getTracks().forEach((track) => track.stop());
@@ -308,6 +307,7 @@ export function DualSessionPage() {
     }
   }
 
+  async function control(action) {
     setBusy(true);
     setError("");
     try {
