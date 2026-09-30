@@ -68,7 +68,7 @@ export function TasksPage() {
     try {
       const response = await api("/api/tasks/assign-selection", {
         method: "PATCH",
-        body: JSON.stringify({ taskIds: selectedIds, vendorId: selectedAssignment.vendorId, participantAId: selectedAssignment.vendorId ? undefined : selectedAssignment.participantAId })
+        body: JSON.stringify({ taskIds: selectedIds, vendorId: selectedAssignment.vendorId || undefined, participantAId: selectedAssignment.vendorId ? undefined : selectedAssignment.participantAId })
       });
       setSelectionResult(`${response.assigned} selected tasks assigned${response.skipped ? `, ${response.skipped} skipped` : ""}.`);
       setSelectedIds([]);
