@@ -73,6 +73,7 @@ const sections = [
     items: [
       { label: "Notifications", to: "/app/notifications", icon: Bell },
       { label: "API Management", to: "/app/api-management", icon: Settings },
+      { label: "Access Control", to: "/app/access-control", icon: Shield },
       { label: "Audit Logs", to: "/app/audit-logs", icon: Shield },
       { label: "Settings", to: "/app/settings", icon: Settings }
     ]

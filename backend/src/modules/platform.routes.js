@@ -376,6 +376,19 @@ platformRoutes.delete("/users/:id", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR")
     await audit(req.user?.id, "USER_DELETED", "User", user.id, { email: user.email, role: user.role });
     res.json({ deleted: true });
 });
+platformRoutes.get("/access-control/users", allowRoles("SUPER_ADMIN"), async (_req, res) => {
+    res.json(await User.find({ deletedAt: { $exists: false } }).select(publicUser).populate("vendorId", "companyName").sort({ createdAt: -1 }));
+});
+platformRoutes.patch("/access-control/users/:id", allowRoles("SUPER_ADMIN"), async (req, res) => {
+    const { role } = z.object({ role: z.enum(["SUPER_ADMIN", "ADMIN", "QA", "VENDOR", "RECORDER"]) }).parse(req.body);
+    if (String(req.user.id) === req.params.id && role !== "SUPER_ADMIN") throw new HttpError(409, "You cannot remove your own Super Admin access.", "CANNOT_CHANGE_OWN_ACCESS");
+    const user = await User.findById(req.params.id).orFail();
+    if (user.role === "SUPER_ADMIN" && role !== "SUPER_ADMIN" && await User.countDocuments({ role: "SUPER_ADMIN", deletedAt: { $exists: false } }) <= 1) throw new HttpError(409, "The last Super Admin must retain access.", "LAST_SUPER_ADMIN");
+    user.role = role;
+    await user.save();
+    await audit(req.user.id, "ACCESS_ROLE_UPDATED", "User", user.id, { role });
+    res.json({ id: user.id, role: user.role });
+});
 platformRoutes.get("/projects", async (req, res) => {
     const { skip, limit } = pageArgs(req.query);
     const actor = req.user.role === "VENDOR" ? await User.findById(req.user.id).select("vendorId") : null;

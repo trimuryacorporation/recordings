@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "./index.css";
 import { AppLayout } from "./layouts/AppLayout";
+import { AccessControlPage } from "./pages/AccessControlPage";
 import { ApiManagementPage } from "./pages/ApiManagementPage";
 import { AuditLogsPage } from "./pages/AuditLogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -76,6 +77,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="qa" element={<QaPage />} />
           <Route path="vendors" element={<VendorsPage />} />
           <Route path="users" element={<UsersPage fixedRole={currentUser()?.role === "VENDOR" ? "RECORDER" : ""} title={currentUser()?.role === "VENDOR" ? "Recorder Users" : "Users"} />} />
+          <Route path="access-control" element={currentUser()?.role === "SUPER_ADMIN" ? <AccessControlPage /> : <Navigate to="/app" replace />} />
           <Route path="clients" element={<PlaceholderPage title="Clients" />} />
           <Route path="qa-team" element={<UsersPage fixedRole="QA" title="QA Team" eyebrow="Quality Team" />} />
           <Route path="approved" element={<QaPage filter="APPROVED" />} />

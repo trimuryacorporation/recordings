@@ -21,7 +21,7 @@ function Modal({ title, children, busy, onClose, wide = false }) {
   );
 }
 
-function UserFields({ value, vendors, editing, fixedRole, onChange }) {
+function UserFields({ value, vendors, editing, fixedRole, vendorScoped, onChange }) {
   const field = (name) => (event) => onChange({ ...value, [name]: event.target.value });
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -29,11 +29,12 @@ function UserFields({ value, vendors, editing, fixedRole, onChange }) {
       <Input aria-label="Email" type="email" placeholder="Email address" value={value.email} onChange={field("email")} required />
       <Input aria-label="Mobile" type="tel" placeholder="Mobile number" value={value.mobile} onChange={field("mobile")} required />
       <Input aria-label="Password" type="password" minLength={8} placeholder={editing ? "New password (optional)" : "Password (minimum 8 characters)"} value={value.password} onChange={field("password")} required={!editing} />
-      {!fixedRole && <Select aria-label="Role" value={value.role} onChange={field("role")}>{roles.map((item) => <option key={item} value={item}>{label(item)}</option>)}</Select>}
+      {vendorScoped && <Input aria-label="Role" value="Recorder" readOnly />}
+      {!fixedRole && !vendorScoped && <Select aria-label="Role" value={value.role} onChange={field("role")}>{roles.map((item) => <option key={item} value={item}>{label(item)}</option>)}</Select>}
       <Select aria-label="Platform" value={value.platformType} onChange={field("platformType")}>{platforms.map((item) => <option key={item} value={item}>{label(item)}</option>)}</Select>
       <Select aria-label="Recording mode" value={value.recordingMode} onChange={field("recordingMode")}><option value="SCRIPTED">Scripted</option><option value="NON_SCRIPTED">Non-scripted</option></Select>
       <Input aria-label="Languages" placeholder="Languages: Hindi, English" value={value.languages} onChange={field("languages")} />
-      <Select aria-label="Vendor" value={value.vendorId} onChange={field("vendorId")}><option value="">No vendor</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.companyName}</option>)}</Select>
+      {!vendorScoped && <Select aria-label="Vendor" value={value.vendorId} onChange={field("vendorId")}><option value="">No vendor</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.companyName}</option>)}</Select>}
       <Select aria-label="Status" value={value.status} onChange={field("status")}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></Select>
     </div>
   );
@@ -48,6 +49,7 @@ export function UsersPage({ fixedRole = "", title = "Users", eyebrow = "Access C
   const vendors = useApiResource("/api/vendors");
   const canManage = ["SUPER_ADMIN", "ADMIN", "VENDOR"].includes(currentUser()?.role);
   const [search, setSearch] = useState("");
+  const isVendor = currentUser()?.role === "VENDOR";
   const [filters, setFilters] = useState({ role: fixedRole, platformType: "", status: "", vendorId: "" });
   const [formMode, setFormMode] = useState("");
   const [form, setForm] = useState(emptyUser);
@@ -126,14 +128,14 @@ export function UsersPage({ fixedRole = "", title = "Users", eyebrow = "Access C
         { id: "actions", header: "Actions", sortable: false, cell: (row) => canManage && <div className="flex gap-2"><Button type="button" variant="secondary" className="h-8 !px-2.5" title="Edit user" aria-label={`Edit ${row.name}`} onClick={() => openEdit(row)}><Pencil size={14} /></Button><Button type="button" variant="danger" className="h-8 !px-2.5" title="Delete user" aria-label={`Delete ${row.name}`} onClick={() => { setDeleteUser(row); setError(""); }}><Trash2 size={14} /></Button></div> }
       ]} /></Card>
 
-      {(formMode === "create" || formMode === "edit") && <Modal title={formMode === "edit" ? `Edit ${fixedRole ? "QA Member" : "User"}` : `Add ${fixedRole ? "QA Member" : "User"}`} busy={busy} onClose={() => setFormMode("")}><form onSubmit={saveUser} className="space-y-4"><UserFields value={form} vendors={vendors.data} editing={formMode === "edit"} fixedRole={fixedRole} onChange={setForm} /><div className="flex justify-end gap-2 border-t border-line pt-4"><Button type="button" variant="secondary" disabled={busy} onClick={() => setFormMode("")}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving..." : formMode === "edit" ? "Save Changes" : `Add ${fixedRole ? "Member" : "User"}`}</Button></div></form></Modal>}
+      {(formMode === "create" || formMode === "edit") && <Modal title={formMode === "edit" ? `Edit ${fixedRole ? "QA Member" : "User"}` : `Add ${fixedRole ? "QA Member" : "User"}`} busy={busy} onClose={() => setFormMode("")}><form onSubmit={saveUser} className="space-y-4"><UserFields value={form} vendors={vendors.data} editing={formMode === "edit"} fixedRole={fixedRole} vendorScoped={isVendor} onChange={setForm} /><div className="flex justify-end gap-2 border-t border-line pt-4"><Button type="button" variant="secondary" disabled={busy} onClick={() => setFormMode("")}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving..." : formMode === "edit" ? "Save Changes" : `Add ${fixedRole ? "Member" : "User"}`}</Button></div></form></Modal>}
 
       {formMode === "bulk" && <Modal title={fixedRole ? "Bulk Add Quality Team" : "Bulk Add Users"} busy={busy} wide onClose={() => setFormMode("")}><form onSubmit={saveBulk} className="space-y-4"><p className="text-sm text-muted">Add up to 100 users. Every user needs a unique email and an 8-character password.</p><div className="space-y-3">{bulkRows.map((row, index) => <div key={index} className={`grid gap-2 border-b border-line pb-3 sm:grid-cols-2 ${fixedRole ? "xl:grid-cols-[1fr_1.2fr_0.8fr_1fr_40px]" : "xl:grid-cols-[1fr_1.2fr_0.8fr_1fr_1fr_40px]"}`}>
         <Input aria-label={`Name ${index + 1}`} placeholder="Name" value={row.name} onChange={(event) => setBulkRows((items) => items.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} required />
         <Input aria-label={`Email ${index + 1}`} type="email" placeholder="Email" value={row.email} onChange={(event) => setBulkRows((items) => items.map((item, i) => i === index ? { ...item, email: event.target.value } : item))} required />
         <Input aria-label={`Mobile ${index + 1}`} placeholder="Mobile" value={row.mobile} onChange={(event) => setBulkRows((items) => items.map((item, i) => i === index ? { ...item, mobile: event.target.value } : item))} required />
         <Input aria-label={`Password ${index + 1}`} type="password" minLength={8} placeholder="Password" value={row.password} onChange={(event) => setBulkRows((items) => items.map((item, i) => i === index ? { ...item, password: event.target.value } : item))} required />
-        {!fixedRole && <Select aria-label={`Role ${index + 1}`} value={row.role} onChange={(event) => setBulkRows((items) => items.map((item, i) => i === index ? { ...item, role: event.target.value } : item))}>{roles.map((item) => <option key={item} value={item}>{label(item)}</option>)}</Select>}
+        {!fixedRole && !isVendor && <Select aria-label={`Role ${index + 1}`} value={row.role} onChange={(event) => setBulkRows((items) => items.map((item, i) => i === index ? { ...item, role: event.target.value } : item))}>{roles.map((item) => <option key={item} value={item}>{label(item)}</option>)}</Select>}
         <Button type="button" variant="ghost" className="h-10 !px-2 text-danger" aria-label={`Remove row ${index + 1}`} disabled={bulkRows.length === 1} onClick={() => setBulkRows((items) => items.filter((_, i) => i !== index))}><X size={16} /></Button>
       </div>)}</div><div className="flex flex-col justify-between gap-3 sm:flex-row"><Button type="button" variant="secondary" disabled={bulkRows.length >= 100} onClick={() => setBulkRows((rows) => [...rows, { ...emptyUser, role: fixedRole || emptyUser.role }])}><Plus size={15} />Add Row</Button><div className="flex justify-end gap-2"><Button type="button" variant="secondary" disabled={busy} onClick={() => setFormMode("")}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Adding..." : `Add ${bulkRows.length} ${fixedRole ? "Members" : "Users"}`}</Button></div></div></form></Modal>}
 
