@@ -84,6 +84,30 @@ const pageArgs = (query) => {
 };
 const json = (doc) => JSON.parse(JSON.stringify(doc));
 platformRoutes.get("/languages", async (_req, res) => res.json(await languageCatalog()));
+async function vendorProfileIdForUser(input) {
+    if (input.role !== "VENDOR" || input.vendorId) return input.vendorId;
+    const email = input.email.toLowerCase();
+    let vendor = await Vendor.findOne({ email });
+    if (!vendor) {
+        vendor = await Vendor.create({
+            companyName: input.name,
+            contactPerson: input.name,
+            email,
+            phone: input.mobile,
+            status: input.status
+        });
+    }
+    return vendor.id;
+}
+async function syncUnlinkedVendorProfiles() {
+    const users = await User.find({ role: "VENDOR", deletedAt: { $exists: false }, $or: [{ vendorId: null }, { vendorId: { $exists: false } }] }).select("name email mobile phone status");
+    for (const user of users) {
+        const email = user.email.toLowerCase();
+        let vendor = await Vendor.findOne({ email });
+        if (!vendor) vendor = await Vendor.create({ companyName: user.name, contactPerson: user.name, email, phone: user.mobile ?? user.phone ?? "", status: user.status });
+        await User.findByIdAndUpdate(user.id, { vendorId: vendor.id });
+    }
+}
 async function projectPayload(project) {
     const row = json(project);
     row.client = project.clientId ? json(project.clientId) : undefined;
@@ -179,10 +203,12 @@ const vendorInputSchema = z.object({
     password: z.union([z.literal(""), z.string().min(8).max(128)]).optional().default("")
 });
 platformRoutes.get("/vendors", async (req, res) => {
+    await syncUnlinkedVendorProfiles();
+    const currentVendor = req.user.role === "VENDOR" ? await User.findById(req.user.id).select("vendorId") : null;
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
     const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const where = {
-        ...(req.user.role === "VENDOR" ? { _id: toObjectId(req.user.vendorId) } : {}),
+        ...(req.user.role === "VENDOR" ? { _id: toObjectId(currentVendor?.vendorId ?? req.user.vendorId) } : {}),
         ...(search ? { $or: ["companyName", "contactPerson", "email", "phone"].map((field) => ({ [field]: { $regex: escapedSearch, $options: "i" } })) } : {}),
         ...(typeof req.query.status === "string" && req.query.status ? { status: req.query.status } : {}),
         ...(typeof req.query.country === "string" && req.query.country ? { country: req.query.country } : {})
@@ -294,7 +320,7 @@ platformRoutes.post("/users", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"), asyn
         const actor = req.user.role === "VENDOR" ? await User.findById(req.user.id).select("vendorId") : null;
         const vendorId = req.user.role === "VENDOR" ? (actor?.vendorId ?? req.user.vendorId) : parsed.vendorId;
         if (req.user.role === "VENDOR" && !vendorId) throw new HttpError(409, "Your vendor account is not linked. Please contact the administrator.", "VENDOR_NOT_LINKED");
-        const input = req.user.role === "VENDOR" ? { ...parsed, role: "RECORDER", vendorId: String(vendorId) } : parsed;
+        const input = req.user.role === "VENDOR" ? { ...parsed, role: "RECORDER", vendorId: String(vendorId) } : { ...parsed, vendorId: await vendorProfileIdForUser(parsed) };
         const { password, ...profile } = input;
         const user = await User.create({
             ...profile,
@@ -726,19 +752,20 @@ platformRoutes.post("/tasks", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"), asyn
     if (req.user.role === "VENDOR" && String(project.vendorId) !== String(vendorId) && !unassigned) throw new HttpError(403, "This script is no longer available for assignment.", "FORBIDDEN");
     if (project.recordingType !== req.body.recordingType || script.recordingType !== req.body.recordingType || String(script.projectId) !== String(projectId))
         throw new HttpError(422, "Project, script, and task recording types must match.", "RECORDING_TYPE_MISMATCH");
-    if (!req.body.participantAId)
-        throw new HttpError(422, "Participant A is required.", "PARTICIPANT_A_REQUIRED");
-    const participant = await User.findById(req.body.participantAId).orFail();
-    const ownsParticipant = String(participant.vendorId) === String(vendorId) || String(participant.createdById) === String(req.user.id);
-    if (req.user.role === "VENDOR" && (participant.role !== "RECORDER" || !ownsParticipant)) throw new HttpError(403, "Select a recorder under your vendor account.", "FORBIDDEN");
+    const assignedVendorId = req.user.role === "VENDOR" ? vendorId : req.body.vendorId;
+    if (!req.body.participantAId && (!assignedVendorId || req.user.role === "VENDOR"))
+        throw new HttpError(422, "Select a vendor or Participant A.", "ASSIGNMENT_TARGET_REQUIRED");
+    const participant = req.body.participantAId ? await User.findById(req.body.participantAId).orFail() : null;
+    const ownsParticipant = participant && (String(participant.vendorId) === String(vendorId) || String(participant.createdById) === String(req.user.id));
+    if (req.user.role === "VENDOR" && (!participant || participant.role !== "RECORDER" || !ownsParticipant)) throw new HttpError(403, "Select a recorder under your vendor account.", "FORBIDDEN");
     const assignment = {
         ...req.body,
         projectId,
         scriptId,
-        vendorId: req.user.role === "VENDOR" ? toObjectId(vendorId) : toObjectId(req.body.vendorId),
+        vendorId: toObjectId(assignedVendorId),
         participantAId: toObjectId(req.body.participantAId),
         participantBId: null,
-        status: "ASSIGNED"
+        status: participant ? "ASSIGNED" : "UNASSIGNED"
     };
     const task = unassigned
         ? await RecordingTask.findOneAndUpdate({ _id: unassigned.id, status: "UNASSIGNED" }, assignment, { new: true })
@@ -752,7 +779,7 @@ platformRoutes.post("/tasks/bulk", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"),
         projectId: z.string().min(12),
         recordingType: z.enum(["SINGLE", "DUAL"]),
         vendorId: z.string().optional(),
-        participantAId: z.string().min(12),
+        participantAId: z.string().min(12).optional(),
         participantBId: z.string().min(12).optional()
     })
 })), async (req, res, next) => {
@@ -760,8 +787,9 @@ platformRoutes.post("/tasks/bulk", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"),
         const projectId = toObjectId(req.body.projectId);
         const project = await Project.findById(projectId).orFail();
         if (req.user.role === "VENDOR" && String(project.vendorId) !== String(req.user.vendorId)) throw new HttpError(403, "This project is not assigned to your vendor account.", "FORBIDDEN");
-        const participant = await User.findById(req.body.participantAId).orFail();
-        if (req.user.role === "VENDOR" && (participant.role !== "RECORDER" || String(participant.vendorId) !== String(req.user.vendorId))) throw new HttpError(403, "Select a recorder under your vendor account.", "FORBIDDEN");
+        const assignedVendorId = req.user.role === "VENDOR" ? req.user.vendorId : req.body.vendorId;
+        const participant = req.body.participantAId ? await User.findById(req.body.participantAId).orFail() : null;
+        if ((!participant && (!assignedVendorId || req.user.role === "VENDOR")) || (req.user.role === "VENDOR" && (participant.role !== "RECORDER" || String(participant.vendorId) !== String(req.user.vendorId)))) throw new HttpError(403, "Select a recorder under your vendor account.", "FORBIDDEN");
         if (project.recordingType !== req.body.recordingType)
             throw new HttpError(422, "Project and task recording types must match.", "RECORDING_TYPE_MISMATCH");
         const scripts = await Script.find({ projectId, recordingType: req.body.recordingType, status: "ACTIVE", deletedAt: { $exists: false } }).select("_id");
@@ -771,7 +799,7 @@ platformRoutes.post("/tasks/bulk", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"),
             const existing = await RecordingTask.findOne({ scriptId: script.id, deletedAt: { $exists: false } }).sort({ createdAt: -1 });
             if (existing && !["UNASSIGNED", "ASSIGNED"].includes(existing.status))
                 continue;
-            const values = { projectId, scriptId: script.id, recordingType: req.body.recordingType, vendorId: req.user.role === "VENDOR" ? toObjectId(req.user.vendorId) : toObjectId(req.body.vendorId), participantAId, participantBId: null, status: "ASSIGNED" };
+            const values = { projectId, scriptId: script.id, recordingType: req.body.recordingType, vendorId: toObjectId(assignedVendorId), participantAId, participantBId: null, status: participant ? "ASSIGNED" : "UNASSIGNED" };
             if (existing)
                 await RecordingTask.findByIdAndUpdate(existing.id, values);
             else
@@ -785,23 +813,31 @@ platformRoutes.post("/tasks/bulk", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"),
         next(error);
     }
 });
-platformRoutes.patch("/tasks/assign-selection", allowRoles("SUPER_ADMIN", "ADMIN"), validate(z.object({
+platformRoutes.patch("/tasks/assign-selection", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR"), validate(z.object({
     body: z.object({
         taskIds: z.array(z.string().min(12)).min(1).max(100),
         vendorId: z.string().min(12).optional(),
-        participantAId: z.string().min(12),
+        participantAId: z.string().min(12).optional(),
         participantBId: z.string().min(12).optional()
     })
 })), async (req, res) => {
+    const actor = req.user.role === "VENDOR" ? await User.findById(req.user.id).select("vendorId") : null;
+    const vendorId = actor?.vendorId ?? req.user.vendorId;
+    if (req.user.role === "VENDOR" && !vendorId) throw new HttpError(409, "Your vendor account is not linked. Please contact the administrator.", "VENDOR_NOT_LINKED");
     const tasks = await RecordingTask.find({ _id: { $in: req.body.taskIds.map(toObjectId) }, deletedAt: { $exists: false } });
-    const eligible = tasks.filter((task) => ["UNASSIGNED", "ASSIGNED"].includes(task.status));
+    const eligible = tasks.filter((task) => ["UNASSIGNED", "ASSIGNED"].includes(task.status) && (req.user.role !== "VENDOR" || String(task.vendorId) === String(vendorId)));
     if (!eligible.length)
         throw new HttpError(422, "Selected tasks cannot be reassigned in their current status.", "TASKS_NOT_ASSIGNABLE");
+    if (req.user.role === "VENDOR") {
+        if (!req.body.participantAId) throw new HttpError(422, "Select one of your participants.", "PARTICIPANT_A_REQUIRED");
+        const participant = await User.findById(req.body.participantAId).orFail();
+        if (participant.role !== "RECORDER" || String(participant.vendorId) !== String(vendorId)) throw new HttpError(403, "Select a recorder under your vendor account.", "FORBIDDEN");
+    }
+        vendorId: req.user.role === "VENDOR" ? toObjectId(vendorId) : toObjectId(req.body.vendorId),
     await Promise.all(eligible.map((task) => RecordingTask.findByIdAndUpdate(task.id, {
-        vendorId: toObjectId(req.body.vendorId),
         participantAId: toObjectId(req.body.participantAId),
         participantBId: null,
-        status: "ASSIGNED"
+        status: req.body.participantAId ? "ASSIGNED" : "UNASSIGNED"
     })));
     await audit(req.user?.id, "TASKS_SELECTION_ASSIGNED", "RecordingTask", undefined, { taskIds: eligible.map((task) => task.id) });
     res.json({ assigned: eligible.length, skipped: tasks.length - eligible.length });

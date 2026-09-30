@@ -27,7 +27,7 @@ function UserFields({ value, vendors, editing, fixedRole, vendorScoped, onChange
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <Input aria-label="Name" placeholder="Full name" value={value.name} onChange={field("name")} required />
       <Input aria-label="Email" type="email" placeholder="Email address" value={value.email} onChange={field("email")} required />
-      <Input aria-label="Mobile" type="tel" placeholder="Mobile number" value={value.mobile} onChange={field("mobile")} required />
+      <Input aria-label="Mobile" type="tel" placeholder="Mobile number" value={value.mobile} onChange={field("mobile")} minLength={8} maxLength={20} required />
       <Input aria-label="Password" type="password" minLength={8} placeholder={editing ? "New password (optional)" : "Password (minimum 8 characters)"} value={value.password} onChange={field("password")} required={!editing} />
       {vendorScoped && <Input aria-label="Role" value="Recorder" readOnly />}
       {!fixedRole && !vendorScoped && <Select aria-label="Role" value={value.role} onChange={field("role")}>{roles.map((item) => <option key={item} value={item}>{label(item)}</option>)}</Select>}

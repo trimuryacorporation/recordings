@@ -68,7 +68,7 @@ export function TasksPage() {
     try {
       const response = await api("/api/tasks/assign-selection", {
         method: "PATCH",
-        body: JSON.stringify({ taskIds: selectedIds, vendorId: selectedAssignment.vendorId, participantAId: selectedAssignment.participantAId })
+        body: JSON.stringify({ taskIds: selectedIds, vendorId: selectedAssignment.vendorId, participantAId: selectedAssignment.vendorId ? undefined : selectedAssignment.participantAId })
       });
       setSelectionResult(`${response.assigned} selected tasks assigned${response.skipped ? `, ${response.skipped} skipped` : ""}.`);
       setSelectedIds([]);
@@ -173,6 +173,8 @@ export function TasksPage() {
   const recorders = users.data.filter((user) => user.role === "RECORDER" && user.status === "ACTIVE");
   const assignableTasks = tasks.data.items.filter((task) => ["UNASSIGNED", "ASSIGNED"].includes(task.status));
 
+  const vendorAssignment = Boolean(form.vendorId) && !isVendor;
+  const selectionVendorAssignment = Boolean(selectedAssignment.vendorId);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -214,7 +216,7 @@ export function TasksPage() {
             <option>SINGLE</option>
             <option>DUAL</option>
           </Select>
-          <Select value={form.vendorId} onChange={(event) => setForm({ ...form, vendorId: event.target.value })}>
+          <Select value={form.vendorId} onChange={(event) => setForm({ ...form, vendorId: event.target.value, participantAId: "" })}>
             <option value="">Vendor</option>
             {vendors.data.map((vendor) => (
               <option key={vendor.id} value={vendor.id}>
@@ -222,14 +224,14 @@ export function TasksPage() {
               </option>
             ))}
           </Select>
-          <Select value={form.participantAId} onChange={(event) => setForm({ ...form, participantAId: event.target.value })} required>
+          {!vendorAssignment && <Select value={form.participantAId} onChange={(event) => setForm({ ...form, participantAId: event.target.value })} required>
             <option value="">Assign to Participant A</option>
             {recorders.map((user) => (
               <option key={user.id} value={user.id}>
                 {user.name}
               </option>
             ))}
-          </Select>
+          </Select>}
           <Button type="submit" disabled={saving}>
             {saving ? "Assigning..." : assignmentMode === "BULK" ? "Assign Project Scripts" : "Assign Script"}
           </Button>
@@ -294,16 +296,16 @@ export function TasksPage() {
             </div>
           </form>
         )}
-        {!isVendor && selectedIds.length > 0 && (
+        {selectedIds.length > 0 && (
           <form onSubmit={assignSelection} className="mb-4 grid gap-3 rounded-md border border-brand/30 bg-teal-50 p-3 md:grid-cols-3">
-            <Select value={selectedAssignment.vendorId} onChange={(event) => setSelectedAssignment({ ...selectedAssignment, vendorId: event.target.value })} required>
+            {!isVendor && <Select value={selectedAssignment.vendorId} onChange={(event) => setSelectedAssignment({ ...selectedAssignment, vendorId: event.target.value, participantAId: "" })} required>
               <option value="">Select vendor</option>
               {vendors.data.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.companyName}</option>)}
-            </Select>
-            <Select value={selectedAssignment.participantAId} onChange={(event) => setSelectedAssignment({ ...selectedAssignment, participantAId: event.target.value })} required>
+            </Select>}
+            {(!selectionVendorAssignment || isVendor) && <Select value={selectedAssignment.participantAId} onChange={(event) => setSelectedAssignment({ ...selectedAssignment, participantAId: event.target.value })} required>
               <option value="">Assign to Participant A</option>
               {recorders.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-            </Select>
+            </Select>}
             <Button type="submit" disabled={assigningSelection}>
               {assigningSelection ? "Assigning..." : `Assign ${selectedIds.length} selected`}
             </Button>
@@ -314,7 +316,7 @@ export function TasksPage() {
           rows={tasks.data.items}
           tableClassName="min-w-[1240px]"
           columns={[
-            ...(!isVendor ? [{
+            ...[{
               id: "select",
               sortable: false,
               header: (
@@ -336,7 +338,7 @@ export function TasksPage() {
                   className="h-4 w-4 accent-teal-700"
                 />
               )
-            }] : []),
+            }],
             {
               header: "Task",
               cell: (row) => (
@@ -366,9 +368,9 @@ export function TasksPage() {
                   <Link className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-semibold text-brand transition hover:bg-teal-50" to={row.recordingType === "DUAL" ? "/app/dual-sessions" : `/record/${row.id}`}>
                     <ExternalLink size={14} /> Open
                   </Link>
-                  <Button type="button" variant="secondary" className="h-8 !px-3" disabled={!["UNASSIGNED", "ASSIGNED"].includes(row.status)} onClick={() => startEditTask(row)}>
+                  {!isVendor && <Button type="button" variant="secondary" className="h-8 !px-3" disabled={!["UNASSIGNED", "ASSIGNED"].includes(row.status)} onClick={() => startEditTask(row)}>
                     <Pencil size={14} /> Edit
-                  </Button>
+                  </Button>}
                   {!isVendor && (
                     <Button type="button" variant="ghost" className="h-8 !px-3 text-danger hover:bg-red-50" disabled={!["UNASSIGNED", "ASSIGNED"].includes(row.status)} onClick={() => requestDeleteTask(row)}>
                       <Trash2 size={14} /> Delete

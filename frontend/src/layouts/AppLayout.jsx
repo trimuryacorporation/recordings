@@ -36,9 +36,7 @@ const sections = [
   {
     title: "People",
     items: [
-      { label: "Vendors", to: "/app/vendors", icon: Users },
       { label: "Users", to: "/app/users", icon: Users },
-      { label: "QA Team", to: "/app/qa-team", icon: Shield }
     ]
   },
   {
