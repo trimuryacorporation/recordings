@@ -397,6 +397,31 @@ platformRoutes.patch("/projects/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async 
     await audit(req.user?.id, "PROJECT_UPDATED", "Project", project.id);
     res.json(project);
 });
+platformRoutes.delete("/projects/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
+    const project = await Project.findById(req.params.id).orFail();
+    await deleteProjectPermanently(project, req.user);
+    await audit(req.user?.id, "PROJECT_DELETED", "Project", project.id, { permanent: true });
+    res.json({ deleted: true, id: project.id });
+});
+platformRoutes.delete("/projects", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
+    const projects = await Project.find({});
+    await Promise.all(projects.map((project) => deleteProjectPermanently(project, req.user)));
+    await audit(req.user?.id, "PROJECTS_BULK_DELETED", "Project", undefined, { count: projects.length });
+    res.json({ deleted: projects.length });
+});
+async function deleteProjectPermanently(project, user) {
+    const scripts = await Script.find({ projectId: project.id });
+    await Promise.all(scripts.map((script) => deleteScriptPermanently(script, user)));
+    const remainingTaskIds = (await RecordingTask.find({ projectId: project.id }).select("_id")).map((task) => task._id);
+    const recordings = remainingTaskIds.length ? await Recording.find({ taskId: { $in: remainingTaskIds } }).select("_id") : [];
+    const recordingIds = recordings.map((recording) => recording._id);
+    if (recordingIds.length) await deleteRecordingMedia(recordingIds);
+    await RecordingSession.deleteMany({ projectId: project.id });
+    await RecordingTask.deleteMany({ projectId: project.id });
+    await Project.findByIdAndDelete(project.id);
+    await audit(user?.id, "PROJECT_DELETED", "Project", project.id, { permanent: true, deletedScripts: scripts.length, deletedTasks: remainingTaskIds.length, deletedAudio: recordingIds.length });
+    return { deletedScripts: scripts.length, deletedTasks: remainingTaskIds.length, deletedAudio: recordingIds.length };
+}
 platformRoutes.get("/scripts", async (req, res) => {
     const { skip, limit } = pageArgs(req.query);
     const actor = req.user.role === "VENDOR" ? await User.findById(req.user.id).select("vendorId") : null;
