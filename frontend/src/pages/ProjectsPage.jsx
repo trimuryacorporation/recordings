@@ -126,7 +126,7 @@ export function ProjectsPage() {
             onChange={(event) => setForm({ ...form, targetRecordings: Number(event.target.value) })}
           />
           <Select value={form.vendorId} onChange={(event) => setForm({ ...form, vendorId: event.target.value })}>
-            <option value="">Vendor</option>
+            <option value="">{vendors.loading ? "Loading vendors..." : vendors.data.length ? "Select vendor" : "No vendors available"}</option>
             {vendors.data.map((vendor) => (
               <option key={vendor.id} value={vendor.id}>
                 {vendor.companyName}

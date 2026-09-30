@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Download, Pencil, Search, Trash2, Upload, X } from "lucide-react";
-import { useDeferredValue, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { DataTable } from "../components/DataTable";
 import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal";
 import { Badge, Button, Card, ErrorState, Input, PageHeader, Select, Textarea } from "../components/ui/primitives";
@@ -97,6 +97,13 @@ export function ScriptsPage() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const fileInput = useRef(null);
+
+  useEffect(() => {
+    const availableTypes = [...new Set(projects.data.map((project) => project.recordingType).filter(Boolean))];
+    if (!availableTypes.length) return;
+    setForm((current) => availableTypes.includes(current.recordingType) ? current : { ...current, recordingType: availableTypes[0], projectId: "" });
+    setUploadForm((current) => availableTypes.includes(current.recordingType) ? current : { ...current, recordingType: availableTypes[0], projectId: "" });
+  }, [projects.data]);
 
   function updateFilter(field, value) {
     setFilters((current) => ({ ...current, [field]: value }));
