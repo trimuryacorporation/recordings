@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import express, { Router } from "express";
 import { z } from "zod";
 import { allowRoles, audit, hashPassword, requireAuth, signAccessToken } from "../core/auth.js";
+import { corsOrigins } from "../core/cors.js";
 import { HttpError } from "../core/http.js";
 import { languageCatalog } from "../core/languages.js";
 import { AppSetting, AuditLog, Client, Invitation, Invoice, ManualRecording, MediaFile, Notification, Project, QaReview, Recording, RecordingSession, RecordingTask, RecordingTrack, Script, ScriptVersion, User, Vendor, VendorPayment } from "../core/models.js";
@@ -84,6 +85,11 @@ const pageArgs = (query) => {
 };
 const json = (doc) => JSON.parse(JSON.stringify(doc));
 platformRoutes.get("/languages", async (_req, res) => res.json(await languageCatalog()));
+function invitationBaseUrl(req) {
+    const origin = req.get("origin");
+    if (origin && corsOrigins.includes(origin)) return origin;
+    return (process.env.APP_URL ?? "http://localhost:5173").split(",")[0].trim();
+}
 async function vendorProfileIdForUser(input) {
     if (input.role !== "VENDOR" || input.vendorId) return input.vendorId;
     const email = input.email.toLowerCase();
@@ -892,7 +898,7 @@ platformRoutes.post("/invitations", allowRoles("SUPER_ADMIN", "ADMIN", "VENDOR")
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const invitation = await Invitation.create({ ...req.body, tokenHash, projectId: toObjectId(req.body.projectId), taskId: toObjectId(req.body.taskId), expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) });
     await audit(req.user?.id, "INVITATION_SENT", "Invitation", invitation.id, { email: invitation.email });
-    res.status(201).json({ ...json(invitation), inviteUrl: `${process.env.APP_URL ?? "http://localhost:5173"}/invite/dual/${token}` });
+    res.status(201).json({ ...json(invitation), inviteUrl: `${invitationBaseUrl(req)}/invite/dual/${token}` });
 });
 platformRoutes.post("/invitations/:token/accept", async (req, res) => {
     const tokenHash = crypto.createHash("sha256").update(req.params.token).digest("hex");
@@ -957,7 +963,7 @@ platformRoutes.post("/dual-invitations", async (req, res) => {
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24)
     });
     await audit(req.user.id, "STANDALONE_DUAL_INVITATION_CREATED", "Invitation", invitation.id, { sessionId: session.id });
-    res.status(201).json({ sessionId: session.id, inviteUrl: `${process.env.APP_URL ?? "http://localhost:5173"}/invite/dual/${token}`, expiresAt: invitation.expiresAt });
+    res.status(201).json({ sessionId: session.id, inviteUrl: `${invitationBaseUrl(req)}/invite/dual/${token}`, expiresAt: invitation.expiresAt });
 });
 platformRoutes.post("/recording-sessions", async (req, res) => {
     const task = await RecordingTask.findById(req.body.taskId).orFail();
@@ -999,7 +1005,7 @@ platformRoutes.post("/recording-sessions/:id/invite", async (req, res) => {
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const invitation = await Invitation.create({ tokenHash, projectId: session.projectId, taskId: session.taskId, sessionId: session.id, email: participantB?.email, participantRole: "B", expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24) });
     await audit(req.user?.id, "PARTICIPANT_B_INVITED", "Invitation", invitation.id, { sessionId: session.id, email: participantB?.email });
-    res.status(201).json({ sessionId: session.id, inviteUrl: `${process.env.APP_URL ?? "http://localhost:5173"}/invite/dual/${token}`, email: participantB?.email, expiresAt: invitation.expiresAt });
+    res.status(201).json({ sessionId: session.id, inviteUrl: `${invitationBaseUrl(req)}/invite/dual/${token}`, email: participantB?.email, expiresAt: invitation.expiresAt });
 });
 platformRoutes.get("/recording-sessions/live", allowRoles("SUPER_ADMIN", "ADMIN", "QA", "VENDOR"), async (req, res) => {
     if (req.user.role === "VENDOR" && !req.user.vendorId) return res.json([]);
