@@ -175,7 +175,8 @@ const vendorInputSchema = z.object({
     phone: z.string().trim().max(30).optional().default(""),
     country: z.string().trim().max(80).optional().default(""),
     address: z.string().trim().max(300).optional().default(""),
-    status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE")
+    status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+    password: z.union([z.literal(""), z.string().min(8).max(128)]).optional().default("")
 });
 platformRoutes.get("/vendors", async (req, res) => {
     const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
@@ -191,7 +192,21 @@ platformRoutes.get("/vendors", async (req, res) => {
 });
 platformRoutes.post("/vendors", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     const input = vendorInputSchema.parse(req.body);
-    const vendor = await Vendor.create({ ...input, email: input.email.toLowerCase() });
+    if (!input.password) throw new HttpError(422, "Set a password so the vendor can sign in.", "VENDOR_PASSWORD_REQUIRED");
+    const { password, ...vendorInput } = input;
+    const email = vendorInput.email.toLowerCase();
+    if (await User.exists({ email })) throw new HttpError(409, "This email is already used by another login account.", "EMAIL_IN_USE");
+    const vendor = await Vendor.create({ ...vendorInput, email });
+    await User.create({
+        name: vendor.contactPerson,
+        email,
+        phone: vendor.phone,
+        passwordHash: await hashPassword(password),
+        role: "VENDOR",
+        vendorId: vendor.id,
+        status: vendor.status,
+        createdById: toObjectId(req.user?.id)
+    });
     await audit(req.user?.id, "VENDOR_CREATED", "Vendor", vendor.id, { email: vendor.email });
     res.status(201).json(vendor);
 });
@@ -207,7 +222,21 @@ platformRoutes.post("/vendors/bulk", allowRoles("SUPER_ADMIN", "ADMIN"), async (
 });
 platformRoutes.patch("/vendors/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async (req, res) => {
     const input = vendorInputSchema.parse(req.body);
-    const vendor = await Vendor.findByIdAndUpdate(req.params.id, { ...input, email: input.email.toLowerCase() }, { new: true, runValidators: true }).orFail();
+    const current = await Vendor.findById(req.params.id).orFail();
+    const { password, ...vendorInput } = input;
+    const email = vendorInput.email.toLowerCase();
+    const loginUser = await User.findOne({ vendorId: current.id, role: "VENDOR" });
+    if (loginUser && loginUser.email !== email && await User.exists({ email, _id: { $ne: loginUser.id } })) throw new HttpError(409, "This email is already used by another login account.", "EMAIL_IN_USE");
+    if (!loginUser && password && await User.exists({ email })) throw new HttpError(409, "This email is already used by another login account.", "EMAIL_IN_USE");
+    const vendor = await Vendor.findByIdAndUpdate(current.id, { ...vendorInput, email }, { new: true, runValidators: true }).orFail();
+    if (loginUser) {
+        const update = { name: vendor.contactPerson, email, phone: vendor.phone, status: vendor.status };
+        if (password) update.passwordHash = await hashPassword(password);
+        await User.findByIdAndUpdate(loginUser.id, update, { runValidators: true });
+    }
+    else if (password) {
+        await User.create({ name: vendor.contactPerson, email, phone: vendor.phone, passwordHash: await hashPassword(password), role: "VENDOR", vendorId: vendor.id, status: vendor.status, createdById: toObjectId(req.user?.id) });
+    }
     await audit(req.user?.id, "VENDOR_UPDATED", "Vendor", vendor.id, { email: vendor.email });
     res.json(vendor);
 });
@@ -218,7 +247,8 @@ platformRoutes.delete("/vendors/:id", allowRoles("SUPER_ADMIN", "ADMIN"), async 
         RecordingTask.countDocuments({ vendorId: req.params.id })
     ]);
     await Promise.all([
-        User.updateMany({ vendorId: req.params.id }, { $unset: { vendorId: 1 } }),
+        User.deleteMany({ vendorId: req.params.id, role: "VENDOR" }),
+        User.updateMany({ vendorId: req.params.id, role: { $ne: "VENDOR" } }, { $unset: { vendorId: 1 } }),
         Project.updateMany({ vendorId: req.params.id }, { $unset: { vendorId: 1 } }),
         RecordingTask.updateMany({ vendorId: req.params.id }, { $unset: { vendorId: 1 } })
     ]);

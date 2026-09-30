@@ -5,7 +5,7 @@ import { Badge, Button, Card, ErrorState, Input, PageHeader, Select, Textarea } 
 import { useApiResource } from "../hooks/useApiResource";
 import { api } from "../services/api";
 
-const emptyVendor = { companyName: "", contactPerson: "", email: "", phone: "", country: "", address: "", status: "ACTIVE" };
+const emptyVendor = { companyName: "", contactPerson: "", email: "", phone: "", country: "", address: "", status: "ACTIVE", password: "" };
 
 function Modal({ title, children, busy, onClose }) {
   return (
@@ -21,13 +21,14 @@ function Modal({ title, children, busy, onClose }) {
   );
 }
 
-function VendorFields({ value, onChange }) {
+function VendorFields({ value, onChange, editing = false }) {
   const field = (name) => (event) => onChange({ ...value, [name]: event.target.value });
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Input aria-label="Company name" placeholder="Company name" value={value.companyName} onChange={field("companyName")} required />
       <Input aria-label="Contact person" placeholder="Contact person" value={value.contactPerson} onChange={field("contactPerson")} required />
       <Input aria-label="Email" type="email" placeholder="Email address" value={value.email} onChange={field("email")} required />
+      <Input aria-label="Login password" type="password" autoComplete="new-password" minLength={8} placeholder={editing ? "New password (leave blank to keep current)" : "Login password (minimum 8 characters)"} value={value.password} onChange={field("password")} required={!editing} />
       <Input aria-label="Phone" type="tel" placeholder="Phone number" value={value.phone} onChange={field("phone")} />
       <Input aria-label="Country" placeholder="Country" value={value.country} onChange={field("country")} />
       <Select aria-label="Status" value={value.status} onChange={field("status")}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></Select>
@@ -116,7 +117,7 @@ export function VendorsPage() {
         ]} />
       </Card>
 
-      {(formMode === "create" || formMode === "edit") && <Modal title={formMode === "edit" ? "Edit Vendor" : "Add Vendor"} busy={busy} onClose={() => setFormMode("")}><form onSubmit={saveVendor} className="space-y-4"><VendorFields value={form} onChange={setForm} /><div className="flex justify-end gap-2 border-t border-line pt-4"><Button type="button" variant="secondary" disabled={busy} onClick={() => setFormMode("")}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving..." : formMode === "edit" ? "Save Changes" : "Add Vendor"}</Button></div></form></Modal>}
+      {(formMode === "create" || formMode === "edit") && <Modal title={formMode === "edit" ? "Edit Vendor" : "Add Vendor"} busy={busy} onClose={() => setFormMode("")}><form onSubmit={saveVendor} className="space-y-4"><VendorFields value={form} onChange={setForm} editing={formMode === "edit"} /><p className="text-xs text-muted">The vendor can sign in with this email and password.</p><div className="flex justify-end gap-2 border-t border-line pt-4"><Button type="button" variant="secondary" disabled={busy} onClick={() => setFormMode("")}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? "Saving..." : formMode === "edit" ? "Save Changes" : "Add Vendor"}</Button></div></form></Modal>}
 
       {formMode === "bulk" && <Modal title="Bulk Add Vendors" busy={busy} onClose={() => setFormMode("")}><form onSubmit={saveBulk} className="space-y-4"><p className="text-sm text-muted">Add up to 100 vendors. Company, contact person and email are required.</p><div className="space-y-3">{bulkRows.map((row, index) => <div key={index} className="grid gap-2 border-b border-line pb-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.2fr_0.8fr_40px]">
         <Input aria-label={`Company ${index + 1}`} placeholder="Company" value={row.companyName} onChange={(event) => setBulkRows((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, companyName: event.target.value } : item))} required />
