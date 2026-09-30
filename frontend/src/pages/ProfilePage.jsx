@@ -1,19 +1,13 @@
 ﻿import { useEffect, useState } from "react";
-import { Eye, EyeOff, KeyRound, Pencil, Save, UserCircle } from "lucide-react";
+import { KeyRound, Pencil, Save, UserCircle } from "lucide-react";
 import { Button, Card, Input, PageHeader } from "../components/ui/primitives";
 import { api, currentUser, updateCurrentUser } from "../services/api";
 
 function PasswordInput({ label, value, onChange, autoComplete, className = "" }) {
-  const [visible, setVisible] = useState(false);
   return (
     <label className={`block text-sm font-medium ${className}`}>
       {label}
-      <span className="relative mt-2 block">
-        <Input type={visible ? "text" : "password"} minLength="8" autoComplete={autoComplete} value={value} onChange={onChange} className="pr-11" />
-        <button type="button" className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted hover:text-ink" onClick={() => setVisible((shown) => !shown)} aria-label={visible ? `Hide ${label}` : `Show ${label}`}>
-          {visible ? <EyeOff size={17} /> : <Eye size={17} />}
-        </button>
-      </span>
+      <span className="mt-2 block"><Input type="password" minLength="8" autoComplete={autoComplete} value={value} onChange={onChange} /></span>
     </label>
   );
 }

@@ -1,3 +1,5 @@
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
 import { clsx } from "clsx";
 
 export function Button({ className, variant = "primary", ...props }) {
@@ -20,16 +22,22 @@ export function Button({ className, variant = "primary", ...props }) {
   );
 }
 
-export function Input({ className, ...props }) {
-  return (
+export function Input({ className, type, ...props }) {
+  const [visible, setVisible] = useState(false);
+  const isPassword = type === "password";
+  const input = (
     <input
+      type={isPassword && visible ? "text" : type}
       className={clsx(
         "focus-ring h-10 w-full rounded-md border border-line bg-white px-3 text-sm text-ink placeholder:text-muted",
+        isPassword && "pr-10",
         className
       )}
       {...props}
     />
   );
+  if (!isPassword) return input;
+  return <span className="relative block">{input}<button type="button" className="focus-ring absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted hover:text-ink" onClick={() => setVisible((current) => !current)} aria-label={visible ? "Hide password" : "Show password"}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</button></span>;
 }
 
 export function Select({ className, children, ...props }) {
