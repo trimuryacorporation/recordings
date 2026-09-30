@@ -109,7 +109,7 @@ export function DualSessionPage() {
   useEffect(() => {
     if (!user) return;
     socket.connect();
-    socket.on("session:presence", (payload) => setParticipants((list) => list.map((item) => item.label === payload.participantLabel ? { ...item, connection: payload.connection } : item)));
+    socket.on("session:presence", (payload) => setParticipants((list) => list.map((item) => item.label === payload.participantLabel ? { ...item, connection: payload.connection, micReady: payload.connection === "CONNECTED", networkOk: payload.connection === "CONNECTED", ready: payload.connection === "CONNECTED" } : item)));
     socket.on("session:ready", (payload) => setParticipants((list) => list.map((item) => item.label === payload.participantLabel ? { ...item, ...payload.checks, ready: true } : item)));
     socket.on("session:countdown", ({ seconds: countdownSeconds = 5 }) => {
       window.clearInterval(countdownTimerRef.current);
@@ -226,6 +226,12 @@ export function DualSessionPage() {
     };
     load();
   }, [location.pathname, navigate, routeSessionId, taskId, token, user?.role]);
+  useEffect(() => {
+    if (!role) return;
+    setParticipants((list) => list.map((participant) => participant.label === role ? participant : {
+      ...participant, connection: "WAITING", micReady: false, cameraReady: false, networkOk: false, ready: false
+    }));
+  }, [role]);
 
   useEffect(() => {
     if (!sessionId || !role) return;
