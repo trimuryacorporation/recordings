@@ -1,4 +1,3 @@
-import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 function backendRoot() {
@@ -7,4 +6,6 @@ function backendRoot() {
         ? path.resolve(currentDir, "../../..")
         : path.resolve(currentDir, "../..");
 }
-dotenv.config({ path: path.resolve(backendRoot(), ".env") });
+// Keep local development self-contained while avoiding a startup dependency
+// on dotenv in production. Hosting providers inject environment variables.
+process.loadEnvFile?.(path.resolve(backendRoot(), ".env"));
